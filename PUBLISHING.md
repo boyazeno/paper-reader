@@ -101,7 +101,7 @@ sudo install -d -m 0755 /etc/apt/keyrings
 curl -fsSL https://<owner>.github.io/<repo>/paper-reader.gpg \
   | sudo tee /etc/apt/keyrings/paper-reader.gpg >/dev/null
 
-echo "deb [signed-by=/etc/apt/keyrings/paper-reader.gpg] https://<owner>.github.io/<repo> stable main" \
+echo "deb [arch=amd64 signed-by=/etc/apt/keyrings/paper-reader.gpg] https://<owner>.github.io/<repo> stable main" \
   | sudo tee /etc/apt/sources.list.d/paper-reader.list
 
 sudo apt update

@@ -91,7 +91,7 @@ pre{background:#111;color:#eee;padding:1rem;border-radius:8px;overflow:auto}code
 <p>Debian/Ubuntu (amd64):</p>
 <pre><code>sudo install -d -m 0755 /etc/apt/keyrings
 curl -fsSL ${PAGES_URL}/paper-reader.gpg | sudo tee /etc/apt/keyrings/paper-reader.gpg >/dev/null
-echo "deb [signed-by=/etc/apt/keyrings/paper-reader.gpg] ${PAGES_URL} ${SUITE} ${COMP}" \\
+echo "deb [arch=${ARCH} signed-by=/etc/apt/keyrings/paper-reader.gpg] ${PAGES_URL} ${SUITE} ${COMP}" \\
   | sudo tee /etc/apt/sources.list.d/paper-reader.list
 sudo apt update
 sudo apt install paper-reader</code></pre>
