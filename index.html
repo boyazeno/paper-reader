@@ -1,0 +1,15 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Paper Reader — APT repository</title>
+<style>body{font:15px/1.6 system-ui,sans-serif;max-width:760px;margin:3rem auto;padding:0 1rem}
+pre{background:#111;color:#eee;padding:1rem;border-radius:8px;overflow:auto}code{font-family:ui-monospace,monospace}</style>
+<h1>Paper Reader — install via apt</h1>
+<p>Debian/Ubuntu (amd64):</p>
+<pre><code>sudo install -d -m 0755 /etc/apt/keyrings
+curl -fsSL https://boyazeno.github.io/paper-reader/paper-reader.gpg | sudo tee /etc/apt/keyrings/paper-reader.gpg >/dev/null
+echo "deb [signed-by=/etc/apt/keyrings/paper-reader.gpg] https://boyazeno.github.io/paper-reader stable main" \
+  | sudo tee /etc/apt/sources.list.d/paper-reader.list
+sudo apt update
+sudo apt install paper-reader</code></pre>
+<p>Or download the <code>.deb</code>/<code>.AppImage</code> directly from the
+<a href="https://github.com/boyazeno/paper-reader/releases">Releases</a> page.</p>
