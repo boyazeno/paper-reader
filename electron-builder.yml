@@ -1,5 +1,9 @@
 appId: de.unituebingen.paperreader
-productName: Paper Reader
+# No space: a space here makes the Linux install dir "/opt/Paper Reader", and
+# Chromium's zygote splits that path on the space when re-launching child
+# processes (execvp "/opt/Paper" → crash). The user-facing name stays
+# "Paper Reader" via linux.desktop.Name and the in-app window title.
+productName: PaperReader
 copyright: Copyright © 2026
 directories:
   buildResources: build
@@ -28,6 +32,8 @@ linux:
   target:
     - AppImage
     - deb
+  # Keep the binary/command and apt package name as `paper-reader`.
+  executableName: paper-reader
   category: Office
   maintainer: Paper Reader
   # Launch with --no-sandbox so the desktop icon works on distros where the
