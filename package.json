@@ -21,7 +21,7 @@
     "lint": "eslint . --ext .ts,.tsx",
     "format": "prettier --write \"src/**/*.{ts,tsx,css}\"",
     "licenses": "node scripts/generate-licenses.mjs",
-    "build:linux": "npm run licenses && electron-vite build && electron-builder --linux AppImage deb"
+    "build:linux": "npm run licenses && electron-vite build && electron-builder --linux AppImage deb --publish never"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.30.1",
