@@ -1,45 +1,101 @@
 import { useEffect, useRef, useState } from 'react'
-import { MessageCircle, Send, Square, X, AlertCircle } from 'lucide-react'
-import type { LlmMessage } from '@shared/types'
-import { explainSystem, explainFirstUser } from '@shared/prompts'
+import { MessageCircle, Send, Square, X, AlertCircle, Sparkles } from 'lucide-react'
+import type { Block, LlmMessage } from '@shared/types'
+import {
+  explainSystem,
+  explainFirstUser,
+  explainPaperSystem,
+  explainEverythingUser,
+  ragSystem,
+  ragUser
+} from '@shared/prompts'
 import { useStore } from '@renderer/store'
+import { useTabActions } from '@renderer/lib/tab'
 import { runLlm, LlmCancelled } from '@renderer/lib/llm'
+import { retrieve } from '@renderer/lib/retrieval'
+import {
+  paperFitsContext,
+  passageBudget,
+  formatPassages,
+  capByTokens,
+  selectForOverview
+} from '@renderer/lib/qaContext'
 import { Button } from './ui'
 import Markdown from './Markdown'
 import { cn } from '@renderer/lib/cn'
 
+interface Source {
+  page: number
+  blockId: string
+}
 interface ViewMsg {
   role: 'user' | 'assistant'
   content: string
+  sources?: Source[]
 }
 
-/** Mini chat window: explains the selected excerpt, then keeps chatting. */
+/** Unique pages (in order) from the blocks used to answer a turn. */
+function pageSources(blocks: Block[]): Source[] {
+  const seen = new Set<number>()
+  const out: Source[] = []
+  for (const b of blocks) {
+    if (!seen.has(b.page)) {
+      seen.add(b.page)
+      out.push({ page: b.page, blockId: b.id })
+    }
+  }
+  return out.sort((a, b) => a.page - b.page)
+}
+
+/**
+ * Mini chat window. With `seedText` it explains that excerpt immediately. With
+ * no excerpt it explains / answers questions about the whole paper: if the paper
+ * fits the provider's context it is sent in full, otherwise the chat retrieves
+ * the most relevant page-tagged excerpts per turn (shown as clickable sources).
+ */
 export default function ChatPanel({
   seedText,
+  fullText,
+  blocks,
   onClose
 }: {
-  seedText: string
+  seedText: string | null
+  fullText: string
+  blocks: Block[]
   onClose: () => void
 }): JSX.Element {
   const settings = useStore((s) => s.settings)
   const provider = settings?.activeProvider ?? 'claude'
   const lang = settings?.targetLang ?? 'Chinese'
+  const { setActiveBlock } = useTabActions()
+
+  // Retrieval mode when there's no excerpt and the paper is too big to send whole.
+  const ragMode = !seedText && !paperFitsContext(fullText, provider)
 
   const historyRef = useRef<LlmMessage[]>([])
   const liveRef = useRef('')
   const runRef = useRef<ReturnType<typeof runLlm> | null>(null)
   const scrollRef = useRef<HTMLDivElement>(null)
   const started = useRef(false)
+  // Blocks that fed the in-flight turn, attached to its answer once it commits.
+  const pendingSources = useRef<Block[]>([])
 
   const [view, setView] = useState<ViewMsg[]>([])
   const [live, setLive] = useState<string | null>(null)
-  const [status, setStatus] = useState<'loading' | 'idle' | 'error'>('loading')
+  const [status, setStatus] = useState<'loading' | 'idle' | 'error'>(
+    seedText ? 'loading' : 'idle'
+  )
   const [error, setError] = useState<string | null>(null)
   const [input, setInput] = useState('')
 
   const commit = (content: string): void => {
+    const used = pendingSources.current
+    pendingSources.current = []
     historyRef.current = [...historyRef.current, { role: 'assistant', content }]
-    setView((v) => [...v, { role: 'assistant', content }])
+    setView((v) => [
+      ...v,
+      { role: 'assistant', content, sources: used.length ? pageSources(used) : undefined }
+    ])
     setLive(null)
     setStatus('idle')
   }
@@ -60,10 +116,12 @@ export default function ChatPanel({
         if (e instanceof LlmCancelled) {
           if (liveRef.current) commit(liveRef.current)
           else {
+            pendingSources.current = []
             setLive(null)
             setStatus('idle')
           }
         } else {
+          pendingSources.current = []
           setError(e instanceof Error ? e.message : 'Request failed.')
           setLive(null)
           setStatus('error')
@@ -71,15 +129,41 @@ export default function ChatPanel({
       })
   }
 
-  // Kick off the initial explanation.
+  // Seed the conversation. Excerpt → explain right away; whole-paper → wait for
+  // the user, seeding either the full text (fits) or a retrieval instruction.
   useEffect(() => {
     if (started.current) return
     started.current = true
-    historyRef.current = [explainSystem(lang), explainFirstUser(seedText)]
-    runTurn()
+    if (seedText) {
+      historyRef.current = [explainSystem(lang), explainFirstUser(seedText)]
+      runTurn()
+    } else if (ragMode) {
+      historyRef.current = [ragSystem(lang)]
+    } else {
+      historyRef.current = [explainPaperSystem(lang, fullText)]
+    }
     return () => runRef.current?.cancel()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
+
+  const explainEverything = (): void => {
+    if (status === 'loading') return
+    if (ragMode) {
+      const picked = selectForOverview(blocks, passageBudget(provider))
+      pendingSources.current = picked
+      historyRef.current = [
+        ...historyRef.current,
+        ragUser(
+          'Explain the whole paper: the problem it addresses, the method/approach, the key results, and why it matters.',
+          formatPassages(picked)
+        )
+      ]
+    } else {
+      historyRef.current = [...historyRef.current, explainEverythingUser()]
+    }
+    setView((v) => [...v, { role: 'user', content: 'Explain the whole paper' }])
+    runTurn()
+  }
 
   // Autoscroll to the newest content.
   useEffect(() => {
@@ -91,7 +175,16 @@ export default function ChatPanel({
     const text = input.trim()
     if (!text || status === 'loading') return
     setInput('')
-    historyRef.current = [...historyRef.current, { role: 'user', content: text }]
+    if (ragMode) {
+      const hits = capByTokens(
+        retrieve(blocks, text, 8).map((r) => r.block),
+        passageBudget(provider)
+      )
+      pendingSources.current = hits
+      historyRef.current = [...historyRef.current, ragUser(text, formatPassages(hits))]
+    } else {
+      historyRef.current = [...historyRef.current, { role: 'user', content: text }]
+    }
     setView((v) => [...v, { role: 'user', content: text }])
     runTurn()
   }
@@ -101,19 +194,45 @@ export default function ChatPanel({
       <div className="flex items-center gap-2 border-b border-border px-3 py-2">
         <MessageCircle className="h-4 w-4 text-accent" />
         <span className="text-sm font-medium">Explain</span>
+        {ragMode && (
+          <span
+            title="This paper is long — answers use the most relevant excerpts."
+            className="rounded bg-accent/10 px-1.5 py-0.5 text-[10px] font-medium text-accent"
+          >
+            retrieval
+          </span>
+        )}
         <div className="flex-1" />
         <button onClick={onClose} title="Close" className="text-muted hover:text-fg">
           <X className="h-4 w-4" />
         </button>
       </div>
 
-      <div className="border-b border-border px-3 py-2">
-        <p className="line-clamp-2 text-xs italic text-muted">“{seedText}”</p>
-      </div>
+      {seedText && (
+        <div className="border-b border-border px-3 py-2">
+          <p className="line-clamp-2 text-xs italic text-muted">“{seedText}”</p>
+        </div>
+      )}
 
       <div ref={scrollRef} className="flex-1 space-y-3 overflow-auto px-3 py-3">
+        {!seedText && view.length === 0 && status !== 'loading' && (
+          <div className="flex h-full flex-col items-center justify-center gap-3 px-4 text-center">
+            <p className="text-sm text-muted">
+              {ragMode
+                ? 'This paper is long — I’ll answer from the most relevant excerpts (with page citations). Explain it, or ask a question.'
+                : 'Explain the whole paper, or ask a question about it below.'}
+            </p>
+            <Button variant="primary" onClick={explainEverything} disabled={!fullText}>
+              <Sparkles className="h-4 w-4" />
+              Explain everything
+            </Button>
+            {!fullText && (
+              <p className="text-xs text-muted">Text is still being extracted…</p>
+            )}
+          </div>
+        )}
         {view.map((m, i) => (
-          <Bubble key={i} role={m.role} content={m.content} />
+          <Bubble key={i} role={m.role} content={m.content} sources={m.sources} onJump={setActiveBlock} />
         ))}
         {live != null && <Bubble role="assistant" content={live || '…'} />}
         {status === 'error' && (
@@ -165,13 +284,17 @@ export default function ChatPanel({
 
 function Bubble({
   role,
-  content
+  content,
+  sources,
+  onJump
 }: {
   role: 'user' | 'assistant'
   content: string
+  sources?: Source[]
+  onJump?: (blockId: string) => void
 }): JSX.Element {
   return (
-    <div className={cn('flex', role === 'user' ? 'justify-end' : 'justify-start')}>
+    <div className={cn('flex flex-col gap-1', role === 'user' ? 'items-end' : 'items-start')}>
       <div
         className={cn(
           'max-w-[85%] rounded-xl px-3 py-2 text-sm leading-relaxed',
@@ -182,6 +305,21 @@ function Bubble({
       >
         {role === 'assistant' ? <Markdown>{content}</Markdown> : content}
       </div>
+      {sources && sources.length > 0 && (
+        <div className="flex max-w-[85%] flex-wrap items-center gap-1">
+          <span className="text-[10px] text-muted">Sources:</span>
+          {sources.map((s) => (
+            <button
+              key={s.blockId}
+              onClick={() => onJump?.(s.blockId)}
+              title="Jump to this page in the PDF"
+              className="rounded bg-border/50 px-1.5 py-0.5 text-[10px] text-accent hover:bg-border"
+            >
+              p.{s.page}
+            </button>
+          ))}
+        </div>
+      )}
     </div>
   )
 }

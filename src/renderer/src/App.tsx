@@ -48,12 +48,22 @@ export default function App(): JSX.Element {
   // Global shortcuts: save / undo / redo (skip undo inside the notes editor).
   useEffect(() => {
     const onKey = (e: KeyboardEvent): void => {
-      const mod = e.metaKey || e.ctrlKey
-      if (!mod) return
       const s = useStore.getState()
       if (s.view !== 'reader') return
       const id = s.activeTabId
       if (!id) return
+
+      // Esc clears the current block selection (if any).
+      if (e.key === 'Escape') {
+        if (s.tabs[id]?.selectedBlockIds.length) {
+          e.preventDefault()
+          s.clearSelection(id)
+        }
+        return
+      }
+
+      const mod = e.metaKey || e.ctrlKey
+      if (!mod) return
       const inEditor = (e.target as HTMLElement)?.closest?.('.ProseMirror')
       const key = e.key.toLowerCase()
       if (key === 's') {

@@ -21,10 +21,10 @@ import { Button } from './ui'
 import RecentMenu from './RecentMenu'
 import BookmarkButton from './BookmarkButton'
 import SyncButton from './SyncButton'
+import TitleEditor from './TitleEditor'
 
 /** Top toolbar: open/new, save, undo/redo, notes + settings. */
 export default function Toolbar(): JSX.Element {
-  const project = useTab((t) => t?.project)
   const setView = useStore((s) => s.setView)
   const openExisting = useStore((s) => s.openExisting)
   const showNotes = useTab((t) => t?.showNotes ?? false)
@@ -76,9 +76,7 @@ export default function Toolbar(): JSX.Element {
       </Button>
 
       <div className="flex flex-1 items-center justify-center gap-3 px-3">
-        <span className="truncate text-sm font-medium text-muted">
-          {project?.meta.title}
-        </span>
+        <TitleEditor />
         {runningLlm > 0 && (
           <Button
             size="sm"

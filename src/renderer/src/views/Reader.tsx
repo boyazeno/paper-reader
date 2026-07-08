@@ -1,4 +1,5 @@
 import { useRef, useState } from 'react'
+import { MessageCircle } from 'lucide-react'
 import { useStore } from '@renderer/store'
 import { useTab, useTabId } from '@renderer/lib/tab'
 import { cn } from '@renderer/lib/cn'
@@ -11,17 +12,31 @@ import ReferencesPanel from '@renderer/components/ReferencesPanel'
 import ResultPanel, { type Task } from '@renderer/components/ResultPanel'
 import ChatPanel from '@renderer/components/ChatPanel'
 import Tour from '@renderer/components/Tour'
+import { Button } from '@renderer/components/ui'
 
 export default function Reader(): JSX.Element {
   const tabId = useTabId()
   const project = useTab((t) => t?.project)
   const showNotes = useTab((t) => t?.showNotes ?? false)
   const showRefs = useTab((t) => t?.showRefs ?? false)
+  const originalText = useTab((t) => t?.originalText ?? '')
+  const selectedIds = useTab((t) => t?.selectedBlockIds ?? [])
   const settings = useStore((s) => s.settings)
   const patchSettings = useStore((s) => s.patchSettings)
   const isActive = useStore((s) => s.activeTabId === tabId)
   const [task, setTask] = useState<Task | null>(null)
-  const [chat, setChat] = useState<{ text: string; nonce: number } | null>(null)
+  // `seed` = the excerpt to explain, or null to offer "Explain everything".
+  const [chat, setChat] = useState<{ seed: string | null; nonce: number } | null>(null)
+
+  // Permanent "Explain it": explain the current selection if any, else open the
+  // chat in whole-paper mode.
+  const openExplain = (): void => {
+    const sel = (project?.blocks ?? [])
+      .filter((b) => selectedIds.includes(b.id))
+      .map((b) => b.text)
+      .join('\n\n')
+    setChat({ seed: sel || null, nonce: Date.now() })
+  }
 
   // Draggable split between the PDF (left) and translation (right) columns —
   // `split` is the left column's fraction of the pair's width.
@@ -84,8 +99,22 @@ export default function Reader(): JSX.Element {
 
           <SelectionBar
             onRun={(kind, text) => setTask({ kind, text, nonce: Date.now() })}
-            onExplain={(text) => setChat({ text, nonce: Date.now() })}
+            onExplain={(text) => setChat({ seed: text, nonce: Date.now() })}
           />
+
+          {/* Always-available entry to the explain chat. */}
+          {!chat && (
+            <Button
+              variant="primary"
+              onClick={openExplain}
+              title="Explain the selection, or the whole paper"
+              className="absolute bottom-4 right-4 z-40 rounded-full shadow-lg"
+            >
+              <MessageCircle className="h-4 w-4" />
+              Explain it
+            </Button>
+          )}
+
           {task && (
             <ResultPanel
               task={task}
@@ -96,7 +125,9 @@ export default function Reader(): JSX.Element {
           {chat && (
             <ChatPanel
               key={chat.nonce}
-              seedText={chat.text}
+              seedText={chat.seed}
+              fullText={originalText}
+              blocks={project.blocks}
               onClose={() => setChat(null)}
             />
           )}

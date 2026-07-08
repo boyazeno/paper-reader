@@ -26,6 +26,8 @@ export interface TabState {
   future: Project[]
   /** Timestamp of the last note keystroke (coalesces undo steps). */
   lastNoteEditTs: number
+  /** Full extracted paper text (blocks joined), cached as LLM Q&A context. */
+  originalText: string
 }
 
 interface AppState {
@@ -70,6 +72,8 @@ interface AppState {
   redo: (tabId: string) => void
   save: (tabId: string) => Promise<void>
   saveAs: (tabId: string) => Promise<void>
+  /** Rename the paper (its display title); persists if the project is saved. */
+  renameProject: (tabId: string, title: string) => Promise<void>
 
   // ---- open paths (create / activate tabs) ----
   openIntake: (r: IntakeResult) => void
@@ -84,6 +88,9 @@ const genId = (): string => `tab-${Date.now()}-${++tabSeq}`
 
 const dirOf = (pdfPath: string): string => pdfPath.replace(/\/paper\.pdf$/, '')
 
+/** Join a paper's blocks into a single plain-text document for LLM context. */
+const blocksToText = (blocks: Block[]): string => blocks.map((b) => b.text).join('\n\n')
+
 function makeTab(project: Project, savedPath: string | null): TabState {
   return {
     id: genId(),
@@ -97,7 +104,8 @@ function makeTab(project: Project, savedPath: string | null): TabState {
     autoTranslate: false,
     past: [],
     future: [],
-    lastNoteEditTs: 0
+    lastNoteEditTs: 0,
+    originalText: blocksToText(project.blocks)
   }
 }
 
@@ -174,7 +182,10 @@ export const useStore = create<AppState>((set, get) => {
 
     // ---- per-tab ----
     setBlocks: (tabId, blocks) =>
-      updateTab(tabId, (t) => ({ project: { ...t.project, blocks } })),
+      updateTab(tabId, (t) => ({
+        project: { ...t.project, blocks },
+        originalText: blocksToText(blocks)
+      })),
 
     updateBlock: (tabId, id, patch, record = false) =>
       updateTab(tabId, (t) => {
@@ -285,6 +296,19 @@ export const useStore = create<AppState>((set, get) => {
       if (res) {
         updateTab(tabId, () => ({ project: res.project, savedPath: res.dir }))
         recordRecent(res.dir, res.project.meta.title)
+      }
+    },
+
+    renameProject: async (tabId, title) => {
+      const name = title.trim()
+      if (!name || get().tabs[tabId]?.project.meta.title === name) return
+      updateTab(tabId, (t) => ({
+        project: { ...t.project, meta: { ...t.project.meta, title: name } }
+      }))
+      const t = get().tabs[tabId]
+      if (t?.savedPath) {
+        await window.api.project.save(t.project)
+        recordRecent(t.savedPath, name)
       }
     },
 

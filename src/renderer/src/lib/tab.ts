@@ -31,6 +31,7 @@ export interface TabActions {
   redo: () => void
   save: () => Promise<void>
   saveAs: () => Promise<void>
+  renameProject: (title: string) => Promise<void>
 }
 
 /** Tab-bound actions with the original (tab-less) signatures. */
@@ -52,7 +53,8 @@ export function useTabActions(): TabActions {
       undo: () => s().undo(id),
       redo: () => s().redo(id),
       save: () => s().save(id),
-      saveAs: () => s().saveAs(id)
+      saveAs: () => s().saveAs(id),
+      renameProject: (title) => s().renameProject(id, title)
     }
   }, [id])
 }
