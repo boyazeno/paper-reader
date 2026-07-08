@@ -43,4 +43,8 @@ linux:
   desktop:
     Name: Paper Reader
     Comment: Read, translate and annotate academic papers
+# Post-install fixes chrome-sandbox perms (setuid root) so terminal launches work
+# too, and refreshes the desktop/MIME databases.
+deb:
+  afterInstall: build/deb-after-install.sh
 npmRebuild: true
