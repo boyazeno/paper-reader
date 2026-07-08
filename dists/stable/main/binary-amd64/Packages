@@ -1,15 +1,15 @@
 Package: paper-reader
-Version: 0.2.3
+Version: 0.2.4
 Architecture: amd64
 Maintainer: Paper Reader
 Installed-Size: 274263
 Depends: libgtk-3-0, libnotify4, libnss3, libxss1, libxtst6, xdg-utils, libatspi2.0-0, libuuid1, libsecret-1-0
 Recommends: libappindicator3-1
-Filename: pool/main/paper-reader_0.2.3_amd64.deb
-Size: 75927854
-MD5sum: ad38ed4148fab501c06b46bd70a64ae4
-SHA1: e941ebd46798c71dbe8df459ec77a496fce880e4
-SHA256: df60bcff41d1cbacdf0a0608930c23e5a6efc77c97e260ddc912406d0ea7dce8
+Filename: pool/main/paper-reader_0.2.4_amd64.deb
+Size: 75894640
+MD5sum: d45e476dd7e65a76b69dfc976c8e2532
+SHA1: 66c54420ad04381386e3619c1d78b39ab54c1359
+SHA256: 20f6b490b49602f8c89931f749c61c9a619a17d1587e92d7de33b9c2f4cddc75
 Section: default
 Priority: optional
 Homepage: https://github.com/paper-reader/paper-reader
