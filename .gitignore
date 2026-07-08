@@ -1,0 +1,15 @@
+node_modules
+out
+dist
+*.log
+*.tsbuildinfo
+.DS_Store
+.env
+.env.local
+
+# apt-repo generation output (scripts/build-apt-repo.sh) and CI scratch
+public
+_existing
+
+# generated at build time by scripts/generate-licenses.mjs
+build/THIRD_PARTY_LICENSES.txt

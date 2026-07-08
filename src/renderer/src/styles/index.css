@@ -1,0 +1,150 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --bg: 247 247 248;
+  --surface: 255 255 255;
+  --border: 226 226 230;
+  --fg: 24 24 27;
+  --muted: 113 113 122;
+  --accent: 79 70 229;
+  --accent-fg: 255 255 255;
+  --highlight: 253 224 71;
+}
+
+.dark {
+  --bg: 11 11 14;
+  --surface: 22 22 27;
+  --border: 39 39 46;
+  --fg: 233 233 238;
+  --muted: 142 142 152;
+  --accent: 129 140 248;
+  --accent-fg: 17 17 21;
+  --highlight: 202 138 4;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  @apply bg-bg text-fg font-sans antialiased;
+  font-feature-settings: 'cv11', 'ss01';
+}
+
+/* Notes editor (TipTap): Tailwind preflight strips heading/list styling, so
+   restore sensible sizes inside the editor. */
+.ProseMirror h1 {
+  @apply mb-2 mt-3 text-2xl font-bold;
+}
+.ProseMirror h2 {
+  @apply mb-2 mt-3 text-xl font-semibold;
+}
+.ProseMirror h3 {
+  @apply mb-1.5 mt-2.5 text-lg font-semibold;
+}
+.ProseMirror p {
+  @apply my-1.5;
+}
+.ProseMirror ul {
+  @apply my-1.5 list-disc pl-6;
+}
+.ProseMirror ol {
+  @apply my-1.5 list-decimal pl-6;
+}
+.ProseMirror blockquote {
+  @apply border-l-2 border-border pl-3 text-muted;
+}
+.ProseMirror img {
+  @apply my-2 max-w-full rounded-lg;
+}
+.ProseMirror:focus {
+  @apply outline-none;
+}
+
+/* Rendered LLM markdown (summary / inspirations / explain chat). */
+.md-body > :first-child {
+  margin-top: 0;
+}
+.md-body > :last-child {
+  margin-bottom: 0;
+}
+.md-body h1 {
+  @apply mb-2 mt-3 text-lg font-bold;
+}
+.md-body h2 {
+  @apply mb-1.5 mt-3 text-base font-semibold;
+}
+.md-body h3 {
+  @apply mb-1.5 mt-2.5 text-sm font-semibold;
+}
+.md-body p {
+  @apply my-2;
+}
+.md-body ul {
+  @apply my-2 list-disc pl-5;
+}
+.md-body ol {
+  @apply my-2 list-decimal pl-5;
+}
+.md-body li {
+  @apply my-0.5;
+}
+.md-body li > ul,
+.md-body li > ol {
+  @apply my-0.5;
+}
+.md-body a {
+  @apply text-accent underline underline-offset-2;
+}
+.md-body strong {
+  @apply font-semibold;
+}
+.md-body em {
+  @apply italic;
+}
+.md-body code {
+  @apply rounded bg-border/60 px-1 py-0.5 text-[0.85em];
+}
+.md-body pre {
+  @apply my-2 overflow-auto rounded-lg bg-border/40 p-3;
+}
+.md-body pre code {
+  @apply bg-transparent p-0 text-[0.85em];
+}
+.md-body blockquote {
+  @apply my-2 border-l-2 border-border pl-3 text-muted;
+}
+.md-body hr {
+  @apply my-3 border-border;
+}
+.md-body table {
+  @apply my-2 w-full border-collapse text-[0.9em];
+}
+.md-body th,
+.md-body td {
+  @apply border border-border px-2 py-1 text-left;
+}
+.md-body th {
+  @apply bg-border/40 font-semibold;
+}
+
+/* Thin, unobtrusive scrollbars matching the minimalist aesthetic. */
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-thumb {
+  @apply bg-border rounded-full;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
