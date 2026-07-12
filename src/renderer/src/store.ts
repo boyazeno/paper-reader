@@ -28,6 +28,14 @@ export interface TabState {
   lastNoteEditTs: number
   /** Full extracted paper text (blocks joined), cached as LLM Q&A context. */
   originalText: string
+  /** Whether the Ctrl+F find bar is open. */
+  searchOpen: boolean
+  /** Block the current search hit lives in (drives scroll + highlight). */
+  searchMatchId: string | null
+  /** The active find query (for highlighting the exact matched text). */
+  searchQuery: string
+  /** One-shot pane scroll offsets to apply on restore from a saved session. */
+  restore: { pdf: number; trans: number } | null
 }
 
 interface AppState {
@@ -48,7 +56,11 @@ interface AppState {
   init: () => Promise<void>
 
   // ---- tab management ----
-  openTab: (project: Project, savedPath: string | null) => string
+  openTab: (
+    project: Project,
+    savedPath: string | null,
+    restore?: { pdf: number; trans: number }
+  ) => string
   closeTab: (id: string) => void
   switchTab: (id: string) => void
 
@@ -66,6 +78,10 @@ interface AppState {
   toggleNotes: (tabId: string) => void
   toggleRefs: (tabId: string) => void
   toggleAutoTranslate: (tabId: string) => void
+  openSearch: (tabId: string) => void
+  closeSearch: (tabId: string) => void
+  setSearchMatch: (tabId: string, id: string | null) => void
+  setSearchQuery: (tabId: string, query: string) => void
   /** Replace the project's note document (rich-text JSON + referenced images). */
   setNote: (tabId: string, doc: unknown, images: string[]) => void
   undo: (tabId: string) => void
@@ -91,7 +107,11 @@ const dirOf = (pdfPath: string): string => pdfPath.replace(/\/paper\.pdf$/, '')
 /** Join a paper's blocks into a single plain-text document for LLM context. */
 const blocksToText = (blocks: Block[]): string => blocks.map((b) => b.text).join('\n\n')
 
-function makeTab(project: Project, savedPath: string | null): TabState {
+function makeTab(
+  project: Project,
+  savedPath: string | null,
+  restore: { pdf: number; trans: number } | null = null
+): TabState {
   return {
     id: genId(),
     project,
@@ -105,7 +125,11 @@ function makeTab(project: Project, savedPath: string | null): TabState {
     past: [],
     future: [],
     lastNoteEditTs: 0,
-    originalText: blocksToText(project.blocks)
+    originalText: blocksToText(project.blocks),
+    searchOpen: false,
+    searchMatchId: null,
+    searchQuery: '',
+    restore
   }
 }
 
@@ -147,8 +171,8 @@ export const useStore = create<AppState>((set, get) => {
     },
 
     // ---- tab management ----
-    openTab: (project, savedPath) => {
-      const tab = makeTab(project, savedPath)
+    openTab: (project, savedPath, restore) => {
+      const tab = makeTab(project, savedPath, restore ?? null)
       set((s) => ({
         tabs: { ...s.tabs, [tab.id]: tab },
         tabOrder: [...s.tabOrder, tab.id],
@@ -242,6 +266,12 @@ export const useStore = create<AppState>((set, get) => {
     toggleRefs: (tabId) => updateTab(tabId, (t) => ({ showRefs: !t.showRefs })),
     toggleAutoTranslate: (tabId) =>
       updateTab(tabId, (t) => ({ autoTranslate: !t.autoTranslate })),
+
+    openSearch: (tabId) => updateTab(tabId, () => ({ searchOpen: true })),
+    closeSearch: (tabId) =>
+      updateTab(tabId, () => ({ searchOpen: false, searchMatchId: null, searchQuery: '' })),
+    setSearchMatch: (tabId, id) => updateTab(tabId, () => ({ searchMatchId: id })),
+    setSearchQuery: (tabId, query) => updateTab(tabId, () => ({ searchQuery: query })),
 
     setNote: (tabId, doc, images) =>
       updateTab(tabId, (t) => {

@@ -1,9 +1,59 @@
 import { useEffect } from 'react'
+import type { SessionTab } from '@shared/types'
 import { useStore } from './store'
 import Welcome from './views/Welcome'
 import Workspace from './components/Workspace'
 import Settings from './views/Settings'
 import Library from './views/Library'
+
+/** Reopen the tabs saved from the last session. Tabs whose project folder is
+ * gone are skipped; returns false if nothing could be restored. */
+async function restoreSession(): Promise<boolean> {
+  const sess = await window.api.session.load()
+  if (!sess?.tabs?.length) return false
+  const st = useStore.getState()
+  let opened = 0
+  for (const tab of sess.tabs) {
+    try {
+      const project = await window.api.project.openPath(tab.dir)
+      st.openTab(project, tab.dir, { pdf: tab.pdfScroll, trans: tab.transScroll })
+      opened++
+    } catch {
+      /* project folder missing → skip this tab */
+    }
+  }
+  if (!opened) return false
+  const order = useStore.getState().tabOrder
+  const active = order[Math.min(sess.activeIndex, order.length - 1)]
+  if (active) useStore.getState().switchTab(active)
+  return true
+}
+
+/** Save the open tabs (+ their scroll) so the next launch can restore them. */
+async function persistSession(): Promise<void> {
+  const s = useStore.getState()
+  const tabs: SessionTab[] = []
+  for (const id of s.tabOrder) {
+    const t = s.tabs[id]
+    if (!t?.savedPath) continue
+    // Ensure project.json exists on disk so it can be reloaded.
+    try {
+      await window.api.project.save(t.project)
+    } catch {
+      /* record the tab even if the save fails */
+    }
+    const panel = document.querySelector(`[data-tab-panel="${id}"]`)
+    const scrollOf = (sel: string): number =>
+      (panel?.querySelector(sel) as HTMLElement | null)?.scrollTop ?? 0
+    tabs.push({
+      dir: t.savedPath,
+      pdfScroll: scrollOf('[data-scroll="pdf"]'),
+      transScroll: scrollOf('[data-scroll="trans"]')
+    })
+  }
+  const activeIndex = Math.max(0, s.tabOrder.indexOf(s.activeTabId ?? ''))
+  await window.api.session.save({ tabs, activeIndex })
+}
 
 export default function App(): JSX.Element {
   const view = useStore((s) => s.view)
@@ -31,15 +81,30 @@ export default function App(): JSX.Element {
         useStore.getState().openTab(proj, dir)
         return
       }
-      // A PDF the app was launched with (file manager / CLI)…
-      const pending = await window.api.getPendingOpen()
-      if (pending) return openFilePath(pending)
-      // …or auto-open a PDF if PR_OPEN was set in the main process.
+      // …or auto-open a PDF if PR_OPEN was set (headless) — bypasses restore.
       const r = await window.api.devAutoOpen()
-      if (r) openIntake(r)
+      if (r) return openIntake(r)
+      // Restore the tabs open at last quit (falls back to the welcome page).
+      await restoreSession()
+      // A PDF the app was launched with (file manager / CLI) → add a tab.
+      const pending = await window.api.getPendingOpen()
+      if (pending) openFilePath(pending)
     })
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [init, openIntake])
+
+  // Save the session when the window is closing (main waits for the reply).
+  useEffect(
+    () =>
+      window.api.onPersistSession(async () => {
+        try {
+          await persistSession()
+        } finally {
+          window.api.sessionPersisted()
+        }
+      }),
+    []
+  )
 
   // A PDF opened via the file manager while the app is already running.
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -53,9 +118,12 @@ export default function App(): JSX.Element {
       const id = s.activeTabId
       if (!id) return
 
-      // Esc clears the current block selection (if any).
+      // Esc closes the find bar (if open), else clears the block selection.
       if (e.key === 'Escape') {
-        if (s.tabs[id]?.selectedBlockIds.length) {
+        if (s.tabs[id]?.searchOpen) {
+          e.preventDefault()
+          s.closeSearch(id)
+        } else if (s.tabs[id]?.selectedBlockIds.length) {
           e.preventDefault()
           s.clearSelection(id)
         }
@@ -66,7 +134,10 @@ export default function App(): JSX.Element {
       if (!mod) return
       const inEditor = (e.target as HTMLElement)?.closest?.('.ProseMirror')
       const key = e.key.toLowerCase()
-      if (key === 's') {
+      if (key === 'f') {
+        e.preventDefault()
+        s.openSearch(id)
+      } else if (key === 's') {
         e.preventDefault()
         s.save(id)
       } else if (key === 'z' && !inEditor) {

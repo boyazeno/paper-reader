@@ -63,6 +63,22 @@ export interface Project {
   notes: Note[]
 }
 
+// ---- window session (restored on next launch) ----
+
+/** One open tab's restorable state: which project + where it was scrolled. */
+export interface SessionTab {
+  /** Absolute path to the `.paperproj` folder. */
+  dir: string
+  pdfScroll: number
+  transScroll: number
+}
+
+export interface SessionData {
+  tabs: SessionTab[]
+  /** Index into `tabs` of the tab that was active. */
+  activeIndex: number
+}
+
 // ---- recents & bookmark library ----
 
 /** A recently opened/saved project (MRU list). */

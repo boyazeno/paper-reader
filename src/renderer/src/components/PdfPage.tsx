@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import type { PDFDocumentProxy } from 'pdfjs-dist'
-import type { Block } from '@shared/types'
+import type { Block, BBox } from '@shared/types'
 import { cn } from '@renderer/lib/cn'
 
 interface Props {
@@ -14,6 +14,9 @@ interface Props {
   activeId: string | null
   hoverId: string | null
   selectedIds: string[]
+  searchId: string | null
+  /** Tight search-highlight rects (PDF coords) for this page's matched text. */
+  highlightRects: BBox[]
   onPick: (id: string, additive: boolean, range: boolean) => void
   onHover: (id: string | null) => void
 }
@@ -30,6 +33,8 @@ export default function PdfPage({
   activeId,
   hoverId,
   selectedIds,
+  searchId,
+  highlightRects,
   onPick,
   onHover
 }: Props): JSX.Element {
@@ -106,6 +111,9 @@ export default function PdfPage({
         const active = b.id === activeId
         const selected = selectedIds.includes(b.id)
         const hover = b.id === hoverId
+        // Box-highlight the matched paragraph only as a fallback when we
+        // couldn't locate the exact text fragments.
+        const searchHit = b.id === searchId && highlightRects.length === 0
         return (
           <div
             key={b.id}
@@ -115,13 +123,15 @@ export default function PdfPage({
             onMouseLeave={() => onHover(null)}
             className={cn(
               'absolute cursor-pointer rounded-sm transition-colors',
-              active
-                ? 'bg-accent/25 ring-1 ring-accent'
-                : selected
-                  ? 'bg-accent/20 ring-1 ring-accent/50'
-                  : hover
-                    ? 'bg-accent/10'
-                    : 'hover:bg-accent/10'
+              searchHit
+                ? 'bg-amber-300/40 ring-2 ring-amber-400'
+                : active
+                  ? 'bg-accent/25 ring-1 ring-accent'
+                  : selected
+                    ? 'bg-accent/20 ring-1 ring-accent/50'
+                    : hover
+                      ? 'bg-accent/10'
+                      : 'hover:bg-accent/10'
             )}
             style={{
               left: x * scale,
@@ -132,6 +142,15 @@ export default function PdfPage({
           />
         )
       })}
+
+      {/* tight highlights over the exact matched search text */}
+      {highlightRects.map(([x, y, w, h], i) => (
+        <div
+          key={`hl${i}`}
+          className="pointer-events-none absolute rounded-[1px] bg-amber-300/50 ring-1 ring-amber-400"
+          style={{ left: x * scale, top: y * scale, width: w * scale, height: h * scale }}
+        />
+      ))}
     </div>
   )
 }

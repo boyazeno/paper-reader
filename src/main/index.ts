@@ -114,6 +114,25 @@ function createWindow(): BrowserWindow {
     return { action: 'deny' }
   })
 
+  // On close, let the renderer persist the open tabs (+ scroll) before we quit,
+  // so the next launch can restore them. Skipped in headless capture mode.
+  if (!process.env['PR_CAPTURE']) {
+    let persisted = false
+    win.on('close', (e) => {
+      if (persisted || win.webContents.isDestroyed()) return
+      e.preventDefault()
+      const finish = (): void => {
+        if (persisted) return
+        persisted = true
+        ipcMain.removeListener(IPC.appSessionPersisted, finish)
+        win.destroy()
+      }
+      ipcMain.once(IPC.appSessionPersisted, finish)
+      setTimeout(finish, 3000) // don't hang if the renderer is unresponsive
+      win.webContents.send(IPC.appPersistSession)
+    })
+  }
+
   if (is.dev && process.env['ELECTRON_RENDERER_URL']) {
     win.loadURL(process.env['ELECTRON_RENDERER_URL'])
   } else {

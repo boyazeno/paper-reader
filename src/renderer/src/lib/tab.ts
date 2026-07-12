@@ -26,6 +26,10 @@ export interface TabActions {
   toggleNotes: () => void
   toggleRefs: () => void
   toggleAutoTranslate: () => void
+  openSearch: () => void
+  closeSearch: () => void
+  setSearchMatch: (id: string | null) => void
+  setSearchQuery: (query: string) => void
   setNote: (doc: unknown, images: string[]) => void
   undo: () => void
   redo: () => void
@@ -49,6 +53,10 @@ export function useTabActions(): TabActions {
       toggleNotes: () => s().toggleNotes(id),
       toggleRefs: () => s().toggleRefs(id),
       toggleAutoTranslate: () => s().toggleAutoTranslate(id),
+      openSearch: () => s().openSearch(id),
+      closeSearch: () => s().closeSearch(id),
+      setSearchMatch: (mid) => s().setSearchMatch(id, mid),
+      setSearchQuery: (q) => s().setSearchQuery(id, q),
       setNote: (doc, images) => s().setNote(id, doc, images),
       undo: () => s().undo(id),
       redo: () => s().redo(id),

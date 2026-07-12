@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 import { RefreshCw, AlertCircle, Square, Languages } from 'lucide-react'
 import type { Block, ProviderId } from '@shared/types'
 import { translatePrompt } from '@shared/prompts'
@@ -17,8 +17,34 @@ interface Props {
   active: boolean
   selected: boolean
   hover: boolean
+  searchMatch: boolean
+  /** The find query, when this block is the current search hit. */
+  searchQuery: string
   onPick: (additive: boolean, range: boolean) => void
   onHover: (v: boolean) => void
+}
+
+/** Wrap each case-insensitive occurrence of `query` in `text` with a mark. */
+function highlightParts(text: string, query: string): ReactNode {
+  const q = query.trim()
+  if (!q) return text
+  const low = text.toLowerCase()
+  const lq = q.toLowerCase()
+  const out: React.ReactNode[] = []
+  let i = 0
+  let idx = low.indexOf(lq)
+  while (idx !== -1) {
+    if (idx > i) out.push(text.slice(i, idx))
+    out.push(
+      <mark key={idx} className="rounded-[1px] bg-amber-300/70 text-inherit">
+        {text.slice(idx, idx + q.length)}
+      </mark>
+    )
+    i = idx + q.length
+    idx = low.indexOf(lq, i)
+  }
+  out.push(text.slice(i))
+  return out
 }
 
 type Status = 'idle' | 'loading' | 'done' | 'error' | 'stopped'
@@ -31,6 +57,8 @@ export default function TranslatedBlock({
   active,
   selected,
   hover,
+  searchMatch,
+  searchQuery,
   onPick,
   onHover
 }: Props): JSX.Element {
@@ -110,17 +138,25 @@ export default function TranslatedBlock({
       onMouseLeave={() => onHover(false)}
       className={cn(
         'group relative cursor-pointer rounded-md px-3 py-2 text-[15px] leading-relaxed transition-colors',
-        active
-          ? 'bg-accent/15 ring-1 ring-accent/40'
-          : selected
-            ? 'bg-accent/10 ring-1 ring-accent/30'
-            : hover
-              ? 'bg-border/40'
-              : 'hover:bg-border/30'
+        // Box-highlight only when translated (can't mark the exact original
+        // text there); untranslated blocks mark the matched substring instead.
+        searchMatch && !untranslated
+          ? 'bg-amber-300/30 ring-1 ring-amber-400'
+          : active
+            ? 'bg-accent/15 ring-1 ring-accent/40'
+            : selected
+              ? 'bg-accent/10 ring-1 ring-accent/30'
+              : hover
+                ? 'bg-border/40'
+                : 'hover:bg-border/30'
       )}
     >
       {untranslated ? (
-        <span className="text-muted">{block.text}</span>
+        <span className="text-muted">
+          {searchMatch && searchQuery.trim()
+            ? highlightParts(block.text, searchQuery)
+            : block.text}
+        </span>
       ) : (
         <Markdown>{showText}</Markdown>
       )}

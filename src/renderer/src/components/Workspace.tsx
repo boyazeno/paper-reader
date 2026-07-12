@@ -20,6 +20,7 @@ export default function Workspace(): JSX.Element {
         {tabOrder.map((id) => (
           <TabIdContext.Provider key={id} value={id}>
             <div
+              data-tab-panel={id}
               className="absolute inset-0"
               style={{ display: id === activeTabId ? 'flex' : 'none' }}
             >

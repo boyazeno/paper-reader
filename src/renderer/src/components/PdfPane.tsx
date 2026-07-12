@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { ZoomIn, ZoomOut } from 'lucide-react'
+import type { BBox } from '@shared/types'
 import { loadPdf, type PDFDocumentProxy } from '@renderer/pdf/pdf'
 import { extractBlocks } from '@renderer/pdf/extract'
 import { useStore } from '@renderer/store'
@@ -15,6 +16,78 @@ interface PageSize {
 
 /** Zoom levels relative to fit-to-width (100% = fits the column). */
 const ZOOM_LEVELS = [1, 1.25, 1.5, 1.75, 2]
+
+const NO_RECTS: BBox[] = []
+
+/**
+ * Bounding rects (PDF coords) of the text fragments that cover `query` inside a
+ * block's bbox — for tight search highlighting over the rasterized page. Uses
+ * pdf.js text-fragment positions (the same transform math as extract.ts).
+ */
+function matchRectsInBlock(
+  items: { str?: string; transform: number[]; width: number; height?: number }[],
+  pageHeight: number,
+  bbox: BBox,
+  query: string
+): BBox[] {
+  const q = query.trim().toLowerCase()
+  if (!q) return []
+  const [bx, by, bw, bh] = bbox
+  const frags: { str: string; x: number; y: number; w: number; h: number }[] = []
+  for (const it of items) {
+    if (!it.str) continue
+    const h = Math.abs(it.transform[3]) || it.height || 10
+    const x = it.transform[4]
+    const y = pageHeight - it.transform[5] - h
+    const w = it.width
+    // keep only fragments overlapping this block's box
+    if (y + h < by - 2 || y > by + bh + 2) continue
+    if (x + w < bx - 2 || x > bx + bw + 2) continue
+    frags.push({ str: it.str, x, y, w, h })
+  }
+  frags.sort((a, b) => a.y - b.y || a.x - b.x)
+
+  // Concatenate fragment text (spaced), tracking each char's fragment + offset
+  // within it, so a match can be narrowed to a sub-rect of its fragment (pdf.js
+  // often returns multi-word runs; proportional char widths approximate glyphs).
+  let joined = ''
+  const cf: number[] = [] // fragment index per char (-1 = inserted separator)
+  const ci: number[] = [] // char index within that fragment
+  frags.forEach((f, fi) => {
+    if (joined) {
+      joined += ' '
+      cf.push(-1)
+      ci.push(-1)
+    }
+    for (let k = 0; k < f.str.length; k++) {
+      joined += f.str[k]
+      cf.push(fi)
+      ci.push(k)
+    }
+  })
+
+  const low = joined.toLowerCase()
+  const rects: BBox[] = []
+  for (let idx = low.indexOf(q); idx !== -1; idx = low.indexOf(q, idx + q.length)) {
+    const end = idx + q.length
+    let k = idx
+    while (k < end) {
+      const fi = cf[k]
+      if (fi < 0) {
+        k++
+        continue
+      }
+      const start = k
+      while (k < end && cf[k] === fi) k++
+      const f = frags[fi]
+      const len = f.str.length || 1
+      const c0 = ci[start]
+      const c1 = ci[k - 1] + 1
+      rects.push([f.x + (c0 / len) * f.w, f.y, ((c1 - c0) / len) * f.w, f.h])
+    }
+  }
+  return rects
+}
 
 /** Left column: renders the original PDF and owns the highlight overlay. */
 export default function PdfPane({ pdfPath }: { pdfPath: string }): JSX.Element {
@@ -33,6 +106,11 @@ export default function PdfPane({ pdfPath }: { pdfPath: string }): JSX.Element {
   const activeId = useTab((t) => t?.activeBlockId ?? null)
   const hoverId = useTab((t) => t?.hoverBlockId ?? null)
   const selectedIds = useTab((t) => t?.selectedBlockIds ?? [])
+  const searchId = useTab((t) => t?.searchMatchId ?? null)
+  const searchQuery = useTab((t) => t?.searchQuery ?? '')
+  const [hl, setHl] = useState<{ page: number; rects: BBox[] } | null>(null)
+  const restore = useTab((t) => t?.restore ?? null)
+  const restoredRef = useRef(false)
   const { setBlocks, selectBlock, setHoverBlock: setHover } = useTabActions()
 
   // Load document + page sizes + extract blocks.
@@ -120,6 +198,59 @@ export default function PdfPane({ pdfPath }: { pdfPath: string }): JSX.Element {
     return () => cancelAnimationFrame(raf)
   }, [activeId, scale])
 
+  // Scroll the current search hit into view.
+  useEffect(() => {
+    if (!searchId) return
+    const container = scrollRef.current
+    if (!container) return
+    const raf = requestAnimationFrame(() => {
+      const el = container.querySelector(`[data-block="${searchId}"]`)
+      if (el) centerInScroll(container, el)
+    })
+    return () => cancelAnimationFrame(raf)
+  }, [searchId, scale])
+
+  // Apply the saved scroll offset once when restoring from a session.
+  useEffect(() => {
+    if (restoredRef.current || status !== 'ready' || !restore) return
+    restoredRef.current = true
+    const el = scrollRef.current
+    if (el) el.scrollTop = restore.pdf
+  }, [status, restore])
+
+  // Compute tight highlight rects for the current search hit's exact text.
+  useEffect(() => {
+    if (!doc || !searchId || !searchQuery.trim()) {
+      setHl(null)
+      return
+    }
+    const block = blocks.find((b) => b.id === searchId)
+    if (!block) {
+      setHl(null)
+      return
+    }
+    let cancelled = false
+    ;(async () => {
+      try {
+        const page = await doc.getPage(block.page)
+        const vp = page.getViewport({ scale: 1 })
+        const content = await page.getTextContent()
+        const rects = matchRectsInBlock(
+          content.items as { str?: string; transform: number[]; width: number }[],
+          vp.height,
+          block.bbox,
+          searchQuery
+        )
+        if (!cancelled) setHl(rects.length ? { page: block.page, rects } : null)
+      } catch {
+        if (!cancelled) setHl(null)
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [doc, searchId, searchQuery, blocks])
+
   const blocksByPage = useMemo(() => {
     const m = new Map<number, typeof blocks>()
     for (const b of blocks) {
@@ -135,6 +266,7 @@ export default function PdfPane({ pdfPath }: { pdfPath: string }): JSX.Element {
       <div
         ref={scrollRef}
         data-tour="original"
+        data-scroll="pdf"
         className="min-h-0 flex-1 overflow-auto bg-bg px-6 py-6"
       >
         {status !== 'ready' && status !== 'error' && (
@@ -163,6 +295,8 @@ export default function PdfPane({ pdfPath }: { pdfPath: string }): JSX.Element {
                 activeId={activeId}
                 hoverId={hoverId}
                 selectedIds={selectedIds}
+                searchId={searchId}
+                highlightRects={hl && hl.page === i + 1 ? hl.rects : NO_RECTS}
                 onPick={selectBlock}
                 onHover={setHover}
               />

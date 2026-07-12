@@ -11,7 +11,8 @@ import type {
   LlmRequest,
   Project,
   ProviderId,
-  RecentEntry
+  RecentEntry,
+  SessionData
 } from '@shared/types'
 
 /**
@@ -92,6 +93,18 @@ const api = {
     ipcRenderer.on(IPC.appOpenFile, h)
     return () => ipcRenderer.removeListener(IPC.appOpenFile, h)
   },
+  // Window session: restore open tabs next launch. `onPersistSession` fires when
+  // the window is closing so the renderer can save; it must reply `persisted()`.
+  session: {
+    load: (): Promise<SessionData | null> => ipcRenderer.invoke(IPC.sessionLoad),
+    save: (data: SessionData): Promise<void> => ipcRenderer.invoke(IPC.sessionSave, data)
+  },
+  onPersistSession(cb: () => void): () => void {
+    const h = (): void => cb()
+    ipcRenderer.on(IPC.appPersistSession, h)
+    return () => ipcRenderer.removeListener(IPC.appPersistSession, h)
+  },
+  sessionPersisted: (): void => ipcRenderer.send(IPC.appSessionPersisted),
   // Dev-only helpers; resolve to null unless the matching env var is set.
   devAutoOpen: (): Promise<IntakeResult | null> => ipcRenderer.invoke('dev:auto-open'),
   devOpenProject: (): Promise<Project | null> => ipcRenderer.invoke('dev:open-project'),

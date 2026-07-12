@@ -4,6 +4,8 @@ import { join, dirname } from 'path'
 import { IPC } from '@shared/ipc'
 import type { AppSettings, LlmRequest, ProviderId } from '@shared/types'
 import { loadSettings, saveSettings } from './settings'
+import { loadSession, saveSession } from './session'
+import type { SessionData } from '@shared/types'
 import { importFromData, importFromPath, importFromUrl, pickAndImport } from './intake'
 import { setSecret, hasSecret, deleteSecret } from './keychain'
 import {
@@ -76,6 +78,10 @@ export function registerIpc(): void {
   )
   ipcMain.handle(IPC.projectOpen, async () => openProject())
   ipcMain.handle(IPC.projectOpenPath, async (_e, dir: string) => loadProjectDir(dir))
+
+  // ---- window session (restore open tabs on next launch) ----
+  ipcMain.handle(IPC.sessionLoad, async () => loadSession())
+  ipcMain.handle(IPC.sessionSave, async (_e, data: SessionData) => saveSession(data))
 
   // ---- recents + bookmark library ----
   ipcMain.handle(IPC.recentsGet, async () => getRecents())

@@ -19,6 +19,11 @@ export const IPC = {
   projectSaveAs: 'project:save-as',
   projectOpen: 'project:open',
   projectOpenPath: 'project:open-path',
+  // window session (restore open tabs)
+  sessionLoad: 'session:load',
+  sessionSave: 'session:save',
+  appPersistSession: 'app:persist-session',
+  appSessionPersisted: 'app:session-persisted',
   // recents + bookmark library
   recentsGet: 'recents:get',
   recentAdd: 'recents:add',

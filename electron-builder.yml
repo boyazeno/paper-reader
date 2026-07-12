@@ -43,6 +43,10 @@ linux:
   desktop:
     Name: Paper Reader
     Comment: Read, translate and annotate academic papers
+    # Match Electron's actual runtime WM_CLASS ("paper-reader") so GNOME/KDE
+    # associate the running window with this launcher (electron-builder would
+    # otherwise set it to the productName "PaperReader", which never matches).
+    StartupWMClass: paper-reader
 # Post-install fixes chrome-sandbox perms (setuid root) so terminal launches work
 # too, and refreshes the desktop/MIME databases.
 deb:

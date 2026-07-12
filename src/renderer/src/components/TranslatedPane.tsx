@@ -17,6 +17,10 @@ export default function TranslatedPane(): JSX.Element {
   const activeId = useTab((t) => t?.activeBlockId ?? null)
   const hoverId = useTab((t) => t?.hoverBlockId ?? null)
   const selectedIds = useTab((t) => t?.selectedBlockIds ?? [])
+  const searchId = useTab((t) => t?.searchMatchId ?? null)
+  const searchQuery = useTab((t) => t?.searchQuery ?? '')
+  const restore = useTab((t) => t?.restore ?? null)
+  const restoredRef = useRef(false)
   const autoTranslate = useTab((t) => t?.autoTranslate ?? false)
   const { selectBlock, setHoverBlock: setHover } = useTabActions()
 
@@ -30,6 +34,24 @@ export default function TranslatedPane(): JSX.Element {
     if (el) centerInScroll(container, el)
   }, [activeId])
 
+  // Scroll the current search hit into view.
+  useEffect(() => {
+    if (!searchId) return
+    const container = scrollRef.current
+    if (!container) return
+    const el = container.querySelector(`[data-tblock="${searchId}"]`)
+    if (el) centerInScroll(container, el)
+  }, [searchId])
+
+  // Apply the saved scroll offset once when restoring from a session.
+  useEffect(() => {
+    if (restoredRef.current || !restore || blocks.length === 0) return
+    restoredRef.current = true
+    requestAnimationFrame(() => {
+      if (scrollRef.current) scrollRef.current.scrollTop = restore.trans
+    })
+  }, [restore, blocks.length])
+
   const provider = settings?.activeProvider ?? 'claude'
   const targetLang = settings?.targetLang ?? 'Chinese'
 
@@ -37,6 +59,7 @@ export default function TranslatedPane(): JSX.Element {
     <div
       ref={scrollRef}
       data-tour="translation"
+      data-scroll="trans"
       className="h-full overflow-auto bg-surface px-6 py-6"
     >
       <div className="mx-auto flex max-w-2xl flex-col gap-1">
@@ -55,6 +78,8 @@ export default function TranslatedPane(): JSX.Element {
             active={b.id === activeId}
             selected={selectedIds.includes(b.id)}
             hover={b.id === hoverId}
+            searchMatch={b.id === searchId}
+            searchQuery={b.id === searchId ? searchQuery : ''}
             onPick={(additive, range) => selectBlock(b.id, additive, range)}
             onHover={(v) => setHover(v ? b.id : null)}
           />

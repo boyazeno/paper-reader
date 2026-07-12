@@ -11,6 +11,7 @@ import NotesPanel from '@renderer/components/NotesPanel'
 import ReferencesPanel from '@renderer/components/ReferencesPanel'
 import ResultPanel, { type Task } from '@renderer/components/ResultPanel'
 import ChatPanel from '@renderer/components/ChatPanel'
+import SearchBar from '@renderer/components/SearchBar'
 import Tour from '@renderer/components/Tour'
 import { Button } from '@renderer/components/ui'
 
@@ -96,6 +97,8 @@ export default function Reader(): JSX.Element {
           {/* While dragging, a full-cover layer keeps the PDF canvas from
               swallowing mouse-move events and holds the resize cursor. */}
           {dragging && <div className="absolute inset-0 z-20 cursor-col-resize" />}
+
+          <SearchBar />
 
           <SelectionBar
             onRun={(kind, text) => setTask({ kind, text, nonce: Date.now() })}
