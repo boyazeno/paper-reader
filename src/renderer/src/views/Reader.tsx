@@ -1,7 +1,8 @@
 import { useRef, useState } from 'react'
-import { MessageCircle } from 'lucide-react'
+import { MessageCircle, Lightbulb } from 'lucide-react'
 import { useStore } from '@renderer/store'
 import { useTab, useTabId } from '@renderer/lib/tab'
+import { paperFitsContext, passageBudget, selectForOverview } from '@renderer/lib/qaContext'
 import { cn } from '@renderer/lib/cn'
 import PdfPane from '@renderer/components/PdfPane'
 import TranslatedPane from '@renderer/components/TranslatedPane'
@@ -29,14 +30,32 @@ export default function Reader(): JSX.Element {
   // `seed` = the excerpt to explain, or null to offer "Explain everything".
   const [chat, setChat] = useState<{ seed: string | null; nonce: number } | null>(null)
 
-  // Permanent "Explain it": explain the current selection if any, else open the
-  // chat in whole-paper mode.
-  const openExplain = (): void => {
-    const sel = (project?.blocks ?? [])
+  const selectionText = (): string =>
+    (project?.blocks ?? [])
       .filter((b) => selectedIds.includes(b.id))
       .map((b) => b.text)
       .join('\n\n')
-    setChat({ seed: sel || null, nonce: Date.now() })
+
+  // Permanent "Explain it": explain the current selection if any, else open the
+  // chat in whole-paper mode.
+  const openExplain = (): void => {
+    setChat({ seed: selectionText() || null, nonce: Date.now() })
+  }
+
+  // Permanent "Find inspirations": inspire from the selection if any, else from
+  // the whole paper (full text when it fits the model, else a spread of it —
+  // the same routing "explain everything" uses).
+  const openInspire = (): void => {
+    const sel = selectionText()
+    const provider = settings?.activeProvider ?? 'claude'
+    const text =
+      sel ||
+      (paperFitsContext(originalText, provider)
+        ? originalText
+        : selectForOverview(project?.blocks ?? [], passageBudget(provider))
+            .map((b) => b.text)
+            .join('\n\n'))
+    if (text) setTask({ kind: 'inspire', text, nonce: Date.now() })
   }
 
   // Draggable split between the PDF (left) and translation (right) columns —
@@ -105,17 +124,28 @@ export default function Reader(): JSX.Element {
             onExplain={(text) => setChat({ seed: text, nonce: Date.now() })}
           />
 
-          {/* Always-available entry to the explain chat. */}
-          {!chat && (
-            <Button
-              variant="primary"
-              onClick={openExplain}
-              title="Explain the selection, or the whole paper"
-              className="absolute bottom-4 right-4 z-40 rounded-full shadow-lg"
-            >
-              <MessageCircle className="h-4 w-4" />
-              Explain it
-            </Button>
+          {/* Always-available global actions (hidden while a panel is open). */}
+          {!chat && !task && (
+            <div className="absolute bottom-4 right-4 z-40 flex items-center gap-2">
+              <Button
+                variant="outline"
+                onClick={openInspire}
+                title="Find inspirations from the selection, or the whole paper"
+                className="rounded-full bg-surface shadow-lg"
+              >
+                <Lightbulb className="h-4 w-4" />
+                Find inspirations
+              </Button>
+              <Button
+                variant="primary"
+                onClick={openExplain}
+                title="Explain the selection, or the whole paper"
+                className="rounded-full shadow-lg"
+              >
+                <MessageCircle className="h-4 w-4" />
+                Explain it
+              </Button>
+            </div>
           )}
 
           {task && (

@@ -60,3 +60,12 @@ npm run build:linux  # → dist/Paper Reader-<v>.AppImage and paper-reader_<v>_a
 Open **Settings** (gear icon) to choose a provider + model, paste an API key
 (stored in the OS keychain), set the translation target language, and test the
 connection. Ollama needs no key — just a running local server.
+
+## License
+
+Paper Reader is licensed under the **[PolyForm Noncommercial License 1.0.0](LICENSE)**.
+You may use, modify, and share it for any **noncommercial** purpose — personal
+use, research, education, and nonprofit/government work all qualify. **Commercial
+use requires a separate license** from the authors. Bundled third‑party
+dependencies remain under their own (permissive) licenses; see
+`THIRD_PARTY_LICENSES.txt` in a packaged build.

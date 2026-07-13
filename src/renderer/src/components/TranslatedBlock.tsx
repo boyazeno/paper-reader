@@ -152,11 +152,12 @@ export default function TranslatedBlock({
       )}
     >
       {untranslated ? (
-        <span className="text-muted">
-          {searchMatch && searchQuery.trim()
-            ? highlightParts(block.text, searchQuery)
-            : block.text}
-        </span>
+        searchMatch && searchQuery.trim() ? (
+          // Plain text while searching so the exact match can be marked.
+          <span className="text-muted">{highlightParts(block.text, searchQuery)}</span>
+        ) : (
+          <Markdown className="text-muted">{block.text}</Markdown>
+        )
       ) : (
         <Markdown>{showText}</Markdown>
       )}

@@ -77,6 +77,9 @@ export default function ChatPanel({
   const runRef = useRef<ReturnType<typeof runLlm> | null>(null)
   const scrollRef = useRef<HTMLDivElement>(null)
   const started = useRef(false)
+  // Whether the view is pinned to the bottom (autoscroll while streaming).
+  // Cleared when the user scrolls up so we stop fighting them.
+  const atBottom = useRef(true)
   // Blocks that fed the in-flight turn, attached to its answer once it commits.
   const pendingSources = useRef<Block[]>([])
 
@@ -105,6 +108,7 @@ export default function ChatPanel({
     setError(null)
     liveRef.current = ''
     setLive('')
+    atBottom.current = true // a new turn re-pins to the bottom
     const run = runLlm(provider, historyRef.current, (full) => {
       liveRef.current = full
       setLive(full)
@@ -165,11 +169,18 @@ export default function ChatPanel({
     runTurn()
   }
 
-  // Autoscroll to the newest content.
+  // Autoscroll to the newest content — but only while pinned to the bottom, so
+  // a user who scrolled up to read isn't yanked back down on every token.
   useEffect(() => {
     const el = scrollRef.current
-    if (el) el.scrollTo({ top: el.scrollHeight })
+    if (el && atBottom.current) el.scrollTo({ top: el.scrollHeight })
   }, [view, live])
+
+  // Track whether the user is at the bottom; scrolling up unpins autoscroll.
+  const onScroll = (e: React.UIEvent<HTMLDivElement>): void => {
+    const el = e.currentTarget
+    atBottom.current = el.scrollHeight - el.scrollTop - el.clientHeight < 40
+  }
 
   const send = (): void => {
     const text = input.trim()
@@ -214,7 +225,11 @@ export default function ChatPanel({
         </div>
       )}
 
-      <div ref={scrollRef} className="flex-1 space-y-3 overflow-auto px-3 py-3">
+      <div
+        ref={scrollRef}
+        onScroll={onScroll}
+        className="flex-1 space-y-3 overflow-auto px-3 py-3"
+      >
         {!seedText && view.length === 0 && status !== 'loading' && (
           <div className="flex h-full flex-col items-center justify-center gap-3 px-4 text-center">
             <p className="text-sm text-muted">

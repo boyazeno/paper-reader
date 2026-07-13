@@ -4,7 +4,7 @@ appId: de.unituebingen.paperreader
 # processes (execvp "/opt/Paper" → crash). The user-facing name stays
 # "Paper Reader" via linux.desktop.Name and the in-app window title.
 productName: PaperReader
-copyright: Copyright © 2026
+copyright: Copyright © 2026 Paper Reader authors — Noncommercial use only
 directories:
   buildResources: build
   output: dist

@@ -339,6 +339,10 @@ export const useStore = create<AppState>((set, get) => {
       if (t?.savedPath) {
         await window.api.project.save(t.project)
         recordRecent(t.savedPath, name)
+        // Keep the library bookmark's name in sync so it stays searchable.
+        const lib = await window.api.library.get()
+        const bm = lib.find((b) => b.projectPath === t.savedPath)
+        if (bm && bm.title !== name) await window.api.library.upsert({ ...bm, title: name })
       }
     },
 
