@@ -228,7 +228,7 @@ export default function ChatPanel({
       <div
         ref={scrollRef}
         onScroll={onScroll}
-        className="flex-1 space-y-3 overflow-auto px-3 py-3"
+        className="flex-1 space-y-3 overflow-auto overscroll-contain px-3 py-3"
       >
         {!seedText && view.length === 0 && status !== 'loading' && (
           <div className="flex h-full flex-col items-center justify-center gap-3 px-4 text-center">

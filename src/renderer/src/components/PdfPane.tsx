@@ -267,7 +267,7 @@ export default function PdfPane({ pdfPath }: { pdfPath: string }): JSX.Element {
         ref={scrollRef}
         data-tour="original"
         data-scroll="pdf"
-        className="min-h-0 flex-1 overflow-auto bg-bg px-6 py-6"
+        className="min-h-0 flex-1 overflow-auto overscroll-contain bg-bg px-6 py-6"
       >
         {status !== 'ready' && status !== 'error' && (
           <div className="flex items-center justify-center gap-2 py-10 text-sm text-muted">

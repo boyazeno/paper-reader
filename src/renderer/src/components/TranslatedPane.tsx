@@ -60,7 +60,7 @@ export default function TranslatedPane(): JSX.Element {
       ref={scrollRef}
       data-tour="translation"
       data-scroll="trans"
-      className="h-full overflow-auto bg-surface px-6 py-6"
+      className="h-full overflow-auto overscroll-contain bg-surface px-6 py-6"
     >
       <div className="mx-auto flex max-w-2xl flex-col gap-1">
         {blocks.length === 0 && (

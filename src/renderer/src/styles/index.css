@@ -33,6 +33,9 @@ body,
 #root {
   height: 100%;
   margin: 0;
+  /* Never let a nested scroller chain its overscroll to the document — that
+     would rubber-band the whole window and expose the bare app background. */
+  overscroll-behavior: none;
 }
 
 body {

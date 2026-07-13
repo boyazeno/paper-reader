@@ -27,7 +27,7 @@ export default function ReferencesPanel(): JSX.Element {
         </button>
       </div>
 
-      <div className="flex-1 space-y-1 overflow-auto px-2 py-2">
+      <div className="flex-1 space-y-1 overflow-auto overscroll-contain px-2 py-2">
         {refs.length === 0 ? (
           <p className="px-2 py-4 text-center text-sm text-muted">
             No references detected.

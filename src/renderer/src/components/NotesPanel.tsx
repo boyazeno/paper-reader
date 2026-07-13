@@ -150,7 +150,7 @@ export default function NotesPanel(): JSX.Element {
         </button>
       </div>
 
-      <div className="flex-1 overflow-auto px-4 py-3">
+      <div className="flex-1 overflow-auto overscroll-contain px-4 py-3">
         <EditorContent editor={editor} />
       </div>
 

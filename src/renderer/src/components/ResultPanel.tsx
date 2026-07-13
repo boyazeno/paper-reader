@@ -91,7 +91,7 @@ export default function ResultPanel({
             <X className="h-4 w-4" />
           </Button>
         </div>
-        <div className="overflow-auto px-4 py-3 text-[15px] leading-relaxed">
+        <div className="overflow-auto overscroll-contain px-4 py-3 text-[15px] leading-relaxed">
           {error ? (
             <div className="flex items-center gap-2 text-sm text-red-400">
               <AlertCircle className="h-4 w-4" />
