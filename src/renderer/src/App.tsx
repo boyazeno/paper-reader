@@ -1,10 +1,11 @@
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import type { SessionTab } from '@shared/types'
 import { useStore } from './store'
 import Welcome from './views/Welcome'
 import Workspace from './components/Workspace'
 import Settings from './views/Settings'
 import Library from './views/Library'
+import ScholarBrowser from './components/ScholarBrowser'
 
 /** Reopen the tabs saved from the last session. Tabs whose project folder is
  * gone are skipped; returns false if nothing could be restored. */
@@ -62,6 +63,13 @@ export default function App(): JSX.Element {
   const openIntake = useStore((s) => s.openIntake)
   const hasTabs = useStore((s) => s.tabOrder.length > 0)
   const setView = useStore((s) => s.setView)
+  const scholarOpen = useStore((s) => s.scholarOpen)
+  // Mount the Scholar Inbox browser lazily, then keep it mounted (hidden) so its
+  // webview keeps its page/scroll/login while the user opens PDFs into tabs.
+  const [scholarMounted, setScholarMounted] = useState(false)
+  useEffect(() => {
+    if (scholarOpen) setScholarMounted(true)
+  }, [scholarOpen])
 
   // Import a PDF file and open it in the reader (file-manager "Open with").
   const openFilePath = async (path: string): Promise<void> => {
@@ -184,6 +192,13 @@ export default function App(): JSX.Element {
       {view === 'library' && (
         <div className="absolute inset-0 z-40">
           <Library />
+        </div>
+      )}
+
+      {/* Scholar Inbox browser — above everything, kept mounted once opened. */}
+      {scholarMounted && (
+        <div className="absolute inset-0 z-50" style={{ display: scholarOpen ? 'block' : 'none' }}>
+          <ScholarBrowser />
         </div>
       )}
     </div>

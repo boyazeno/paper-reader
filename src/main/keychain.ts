@@ -45,3 +45,48 @@ export async function deleteSecret(provider: ProviderId): Promise<void> {
   if (kt) await kt.deletePassword(SERVICE, provider)
   else memory.delete(provider)
 }
+
+// ---- Scholar Inbox personal login link (a reusable bearer token) ----
+
+const SCHOLAR_ACCOUNT = 'scholar-inbox-link'
+
+/** A saved login link must be an https URL on scholar-inbox.com — guards
+ * against storing/opening anything else (e.g. a stray localhost URL). */
+export function isScholarInboxLink(link: string): boolean {
+  try {
+    const u = new URL(link)
+    return (
+      u.protocol === 'https:' &&
+      (u.hostname === 'scholar-inbox.com' || u.hostname.endsWith('.scholar-inbox.com'))
+    )
+  } catch {
+    return false
+  }
+}
+
+export async function setScholarLink(link: string): Promise<void> {
+  if (!isScholarInboxLink(link)) {
+    throw new Error('Not a Scholar Inbox link — it must be an https scholar-inbox.com URL.')
+  }
+  const kt = await getKeytar()
+  if (kt) await kt.setPassword(SERVICE, SCHOLAR_ACCOUNT, link)
+  else memory.set(SCHOLAR_ACCOUNT, link)
+}
+
+export async function getScholarLink(): Promise<string | null> {
+  const kt = await getKeytar()
+  const link = kt ? await kt.getPassword(SERVICE, SCHOLAR_ACCOUNT) : memory.get(SCHOLAR_ACCOUNT)
+  // Ignore (and drop) anything that isn't a valid scholar-inbox.com link.
+  if (!link) return null
+  if (!isScholarInboxLink(link)) {
+    await clearScholarLink()
+    return null
+  }
+  return link
+}
+
+export async function clearScholarLink(): Promise<void> {
+  const kt = await getKeytar()
+  if (kt) await kt.deletePassword(SERVICE, SCHOLAR_ACCOUNT)
+  else memory.delete(SCHOLAR_ACCOUNT)
+}

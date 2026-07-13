@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
+import type { CSSProperties } from 'react'
 import type { PDFDocumentProxy } from 'pdfjs-dist'
+import { pdfjs } from '@renderer/pdf/pdf'
 import type { Block, BBox } from '@shared/types'
 import { cn } from '@renderer/lib/cn'
 
@@ -21,8 +23,8 @@ interface Props {
   onHover: (id: string | null) => void
 }
 
-/** A single PDF page: canvas rendered lazily when scrolled near, plus clickable
- * block overlays that drive the left↔right highlight. */
+/** A single PDF page: canvas rendered lazily when scrolled near, a selectable
+ * text layer over it, plus block overlays that drive the left↔right highlight. */
 export default function PdfPage({
   doc,
   pageNum,
@@ -40,11 +42,16 @@ export default function PdfPage({
 }: Props): JSX.Element {
   const hostRef = useRef<HTMLDivElement>(null)
   const canvasRef = useRef<HTMLCanvasElement>(null)
+  const textRef = useRef<HTMLDivElement>(null)
   const [visible, setVisible] = useState(false)
   // Scale the canvas bitmap was last rasterized at; null until first render.
   // Tracked (rather than a boolean) so zooming re-renders at the new resolution
   // instead of CSS-stretching a stale low-res bitmap (blurry text).
   const renderedScale = useRef<number | null>(null)
+  // The text layer is positioned with `calc(var(--scale-factor) * …)`, so it is
+  // rendered once and zoom just updates the CSS variable — no re-render needed.
+  const textRendered = useRef(false)
+  const lastHover = useRef<string | null>(null)
 
   // Render when the page scrolls near the viewport.
   useEffect(() => {
@@ -93,19 +100,93 @@ export default function PdfPage({
     }
   }, [visible, doc, pageNum, scale, width, height])
 
+  // Render the selectable text layer once (positions scale via --scale-factor).
+  useEffect(() => {
+    if (!visible || textRendered.current) return
+    const container = textRef.current
+    if (!container) return
+    let cancelled = false
+    let layer: { cancel?: () => void } | null = null
+    ;(async () => {
+      const page = await doc.getPage(pageNum)
+      if (cancelled) return
+      const textContentSource = await page.getTextContent()
+      if (cancelled) return
+      container.replaceChildren()
+      layer = new pdfjs.TextLayer({
+        textContentSource,
+        container,
+        viewport: page.getViewport({ scale })
+      })
+      try {
+        await (layer as any).render()
+        textRendered.current = true
+      } catch {
+        /* render cancelled */
+      }
+    })()
+    return () => {
+      cancelled = true
+      layer?.cancel?.()
+    }
+    // scale intentionally excluded: the layer is scaled via --scale-factor.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [visible, doc, pageNum])
+
+  // Which block (if any) sits under a pointer event, via bbox hit-testing.
+  const blockAt = (e: { clientX: number; clientY: number }): string | null => {
+    const host = hostRef.current
+    if (!host) return null
+    const r = host.getBoundingClientRect()
+    const px = (e.clientX - r.left) / scale
+    const py = (e.clientY - r.top) / scale
+    for (const b of blocks) {
+      const [x, y, w, h] = b.bbox
+      if (px >= x && px <= x + w && py >= y && py <= y + h) return b.id
+    }
+    return null
+  }
+
+  const onClick = (e: React.MouseEvent): void => {
+    // Don't hijack a click that finished a text selection (drag-to-select).
+    const sel = window.getSelection()
+    if (sel && !sel.isCollapsed && sel.toString().trim()) return
+    const id = blockAt(e)
+    if (id) onPick(id, e.ctrlKey || e.metaKey, e.shiftKey)
+  }
+
+  const onMouseMove = (e: React.MouseEvent): void => {
+    const id = blockAt(e)
+    if (id !== lastHover.current) {
+      lastHover.current = id
+      onHover(id)
+    }
+  }
+
+  const onMouseLeave = (): void => {
+    if (lastHover.current !== null) {
+      lastHover.current = null
+      onHover(null)
+    }
+  }
+
   return (
     <div
       ref={hostRef}
       className="relative mx-auto bg-white shadow-sm ring-1 ring-border"
       style={{ width: width * scale, height: height * scale }}
       data-page={pageNum}
+      onClick={onClick}
+      onMouseMove={onMouseMove}
+      onMouseLeave={onMouseLeave}
     >
       <canvas
         ref={canvasRef}
         className="block h-full w-full"
         style={{ width: width * scale, height: height * scale }}
       />
-      {/* block overlays */}
+      {/* block overlays — visual only; interaction is hit-tested on the host so
+          the text layer above stays selectable */}
       {blocks.map((b) => {
         const [x, y, w, h] = b.bbox
         const active = b.id === activeId
@@ -118,11 +199,8 @@ export default function PdfPage({
           <div
             key={b.id}
             data-block={b.id}
-            onClick={(e) => onPick(b.id, e.ctrlKey || e.metaKey, e.shiftKey)}
-            onMouseEnter={() => onHover(b.id)}
-            onMouseLeave={() => onHover(null)}
             className={cn(
-              'absolute cursor-pointer rounded-sm transition-colors',
+              'pointer-events-none absolute rounded-sm transition-colors',
               searchHit
                 ? 'bg-amber-300/40 ring-2 ring-amber-400'
                 : active
@@ -131,7 +209,7 @@ export default function PdfPage({
                     ? 'bg-accent/20 ring-1 ring-accent/50'
                     : hover
                       ? 'bg-accent/10'
-                      : 'hover:bg-accent/10'
+                      : ''
             )}
             style={{
               left: x * scale,
@@ -143,11 +221,18 @@ export default function PdfPage({
         )
       })}
 
+      {/* selectable text layer (transparent), above the block overlays */}
+      <div
+        ref={textRef}
+        className="textLayer"
+        style={{ '--scale-factor': scale } as CSSProperties}
+      />
+
       {/* tight highlights over the exact matched search text */}
       {highlightRects.map(([x, y, w, h], i) => (
         <div
           key={`hl${i}`}
-          className="pointer-events-none absolute rounded-[1px] bg-amber-300/50 ring-1 ring-amber-400"
+          className="pointer-events-none absolute z-[3] rounded-[1px] bg-amber-300/50 ring-1 ring-amber-400"
           style={{ left: x * scale, top: y * scale, width: w * scale, height: h * scale }}
         />
       ))}

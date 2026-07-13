@@ -1,6 +1,6 @@
 {
   "name": "paper-reader",
-  "version": "0.2.7",
+  "version": "0.2.8",
   "description": "An elegant desktop app for reading, translating, summarizing and annotating academic papers.",
   "author": {
     "name": "Paper Reader",
@@ -25,6 +25,7 @@
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.30.1",
+    "@tiptap/extension-mathematics": "^2.27.2",
     "electron-updater": "^6.3.9",
     "keytar": "^7.9.0"
   },

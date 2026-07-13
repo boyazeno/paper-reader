@@ -43,6 +43,8 @@ interface AppState {
   settings: AppSettings | null
   /** Number of in-flight LLM runs (maintained by lib/llm). */
   runningLlm: number
+  /** Whether the Scholar Inbox embedded browser overlay is showing. */
+  scholarOpen: boolean
 
   // ---- tabs (one per open paper) ----
   tabs: Record<string, TabState>
@@ -54,6 +56,8 @@ interface AppState {
   setSettings: (s: AppSettings) => void
   patchSettings: (patch: Partial<AppSettings>) => Promise<void>
   init: () => Promise<void>
+  openScholar: () => void
+  closeScholar: () => void
 
   // ---- tab management ----
   openTab: (
@@ -150,12 +154,15 @@ export const useStore = create<AppState>((set, get) => {
     view: 'welcome',
     settings: null,
     runningLlm: 0,
+    scholarOpen: false,
     tabs: {},
     tabOrder: [],
     activeTabId: null,
 
     setView: (view) => set({ view }),
     setSettings: (settings) => set({ settings }),
+    openScholar: () => set({ scholarOpen: true }),
+    closeScholar: () => set({ scholarOpen: false }),
 
     patchSettings: async (patch) => {
       const cur = get().settings

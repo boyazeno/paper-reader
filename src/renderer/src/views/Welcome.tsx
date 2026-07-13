@@ -9,6 +9,7 @@ import {
   ChevronDown,
   Library as LibraryIcon,
   Clock,
+  Inbox,
   X
 } from 'lucide-react'
 import { useStore } from '@renderer/store'
@@ -28,6 +29,7 @@ export default function Welcome({ onClose }: { onClose?: () => void }): JSX.Elem
   const openIntake = useStore((s) => s.openIntake)
   const openProjectPath = useStore((s) => s.openProjectPath)
   const setView = useStore((s) => s.setView)
+  const openScholar = useStore((s) => s.openScholar)
 
   const [recents, setRecents] = useState<RecentEntry[]>([])
   useEffect(() => {
@@ -78,8 +80,12 @@ export default function Welcome({ onClose }: { onClose?: () => void }): JSX.Elem
           <X className="h-4 w-4" />
         </button>
       )}
-      {/* top-right shortcuts: pull a vault from Git, or open the library */}
+      {/* top-right shortcuts: Scholar Inbox, pull a vault from Git, or the library */}
       <div className="absolute right-5 top-5 flex items-center gap-1 text-muted">
+        <Button size="sm" variant="ghost" onClick={openScholar}>
+          <Inbox className="h-4 w-4" />
+          Scholar Inbox
+        </Button>
         <SyncButton label="Sync from Git" />
         <Button size="sm" variant="ghost" onClick={() => setView('library')}>
           <LibraryIcon className="h-4 w-4" />

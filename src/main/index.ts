@@ -1,4 +1,4 @@
-import { app, shell, BrowserWindow, protocol, net, ipcMain } from 'electron'
+import { app, shell, BrowserWindow, protocol, net, ipcMain, session } from 'electron'
 import { join, resolve } from 'path'
 import { pathToFileURL, fileURLToPath } from 'url'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
@@ -167,6 +167,20 @@ if (!app.requestSingleInstanceLock()) {
 
     app.on('browser-window-created', (_, window) => {
       optimizer.watchWindowShortcuts(window)
+    })
+
+    // Links in the embedded Scholar Inbox browser that open a new window
+    // (target=_blank) are almost always a PDF. Intercept those popups and hand
+    // the URL to the renderer to import as a tab, rather than spawning a
+    // separate window. Scoped to the Scholar Inbox partition so other
+    // webviews (e.g. the title-search browser) keep their normal behaviour.
+    const scholarSession = session.fromPartition('persist:scholar-inbox')
+    app.on('web-contents-created', (_e, contents) => {
+      if (contents.getType() !== 'webview' || contents.session !== scholarSession) return
+      contents.setWindowOpenHandler(({ url }) => {
+        mainWindow?.webContents.send(IPC.scholarOpenUrl, url)
+        return { action: 'deny' }
+      })
     })
 
     // prfile://local/<uri-encoded-absolute-path> -> file on disk.

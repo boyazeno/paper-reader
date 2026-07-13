@@ -5,6 +5,7 @@ import TextStyle from '@tiptap/extension-text-style'
 import Color from '@tiptap/extension-color'
 import Highlight from '@tiptap/extension-highlight'
 import Image from '@tiptap/extension-image'
+import { Mathematics } from '@tiptap/extension-mathematics'
 import {
   Bold,
   Italic,
@@ -55,7 +56,10 @@ export default function NotesPanel(): JSX.Element {
       TextStyle,
       Color,
       Highlight.configure({ multicolor: true }),
-      Image.configure({ inline: false })
+      Image.configure({ inline: false }),
+      // Render inline TeX written as $…$ (e.g. $a_b$) live via KaTeX. The raw
+      // text stays in the doc, so Markdown export keeps the $…$ source.
+      Mathematics.configure({ katexOptions: { throwOnError: false } })
     ],
     content: (project?.notes[0]?.doc as object) ?? '<p></p>',
     editorProps: {

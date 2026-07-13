@@ -7,7 +7,14 @@ import { loadSettings, saveSettings } from './settings'
 import { loadSession, saveSession } from './session'
 import type { SessionData } from '@shared/types'
 import { importFromData, importFromPath, importFromUrl, pickAndImport } from './intake'
-import { setSecret, hasSecret, deleteSecret } from './keychain'
+import {
+  setSecret,
+  hasSecret,
+  deleteSecret,
+  setScholarLink,
+  getScholarLink,
+  clearScholarLink
+} from './keychain'
 import {
   saveProject,
   saveProjectAs,
@@ -154,6 +161,11 @@ export function registerIpc(): void {
   )
   ipcMain.handle(IPC.secretHas, async (_e, p: ProviderId) => hasSecret(p))
   ipcMain.handle(IPC.secretDelete, async (_e, p: ProviderId) => deleteSecret(p))
+
+  // ---- Scholar Inbox login link ----
+  ipcMain.handle(IPC.scholarSetLink, async (_e, link: string) => setScholarLink(link))
+  ipcMain.handle(IPC.scholarGetLink, async () => getScholarLink())
+  ipcMain.handle(IPC.scholarClearLink, async () => clearScholarLink())
 
   // ---- llm streaming ----
   ipcMain.handle(IPC.llmStart, async (event, req: LlmRequest) => {

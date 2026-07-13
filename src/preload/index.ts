@@ -114,6 +114,20 @@ const api = {
     has: (p: ProviderId): Promise<boolean> => ipcRenderer.invoke(IPC.secretHas, p),
     delete: (p: ProviderId): Promise<void> => ipcRenderer.invoke(IPC.secretDelete, p)
   },
+  // Scholar Inbox personal login link (kept in the OS keychain).
+  scholar: {
+    setLink: (link: string): Promise<void> =>
+      ipcRenderer.invoke(IPC.scholarSetLink, link),
+    getLink: (): Promise<string | null> => ipcRenderer.invoke(IPC.scholarGetLink),
+    clearLink: (): Promise<void> => ipcRenderer.invoke(IPC.scholarClearLink),
+    // Fires when a Scholar Inbox link tried to open a new window (a PDF to
+    // import into a tab). Returns an unsubscribe function.
+    onOpenUrl(cb: (url: string) => void): () => void {
+      const h = (_: unknown, url: string): void => cb(url)
+      ipcRenderer.on(IPC.scholarOpenUrl, h)
+      return () => ipcRenderer.removeListener(IPC.scholarOpenUrl, h)
+    }
+  },
   // Streaming LLM events. Returns an unsubscribe function.
   llm: {
     start: (req: LlmRequest): Promise<{ ok: boolean; error?: string }> =>

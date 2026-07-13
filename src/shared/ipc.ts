@@ -9,6 +9,13 @@ export const IPC = {
   secretSet: 'secret:set',
   secretHas: 'secret:has',
   secretDelete: 'secret:delete',
+  // Scholar Inbox personal login link (stored in the keychain)
+  scholarSetLink: 'scholar:set-link',
+  scholarGetLink: 'scholar:get-link',
+  scholarClearLink: 'scholar:clear-link',
+  // main → renderer: a link in the Scholar Inbox webview tried to open a new
+  // window (usually a PDF); the renderer imports it into a tab instead.
+  scholarOpenUrl: 'scholar:open-url',
   // paper intake
   intakePick: 'intake:pick',
   intakeFromUrl: 'intake:from-url',

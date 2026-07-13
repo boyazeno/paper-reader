@@ -70,6 +70,58 @@ body {
   @apply outline-none;
 }
 
+/* pdf.js text layer: transparent, absolutely-positioned text runs laid over the
+   rasterized page so the user can select/copy the real text. Positions/sizes
+   are `calc(var(--scale-factor) * …)`, so zoom only updates --scale-factor. */
+.textLayer {
+  position: absolute;
+  inset: 0;
+  overflow: clip;
+  line-height: 1;
+  text-align: initial;
+  text-size-adjust: none;
+  forced-color-adjust: none;
+  transform-origin: 0 0;
+  z-index: 2;
+  caret-color: transparent;
+}
+.textLayer :is(span, br) {
+  position: absolute;
+  color: transparent;
+  white-space: pre;
+  cursor: text;
+  transform-origin: 0% 0%;
+}
+.textLayer span[role='img'] {
+  user-select: none;
+  cursor: default;
+}
+.textLayer .endOfContent {
+  position: absolute;
+  inset: 100% 0 0;
+  display: block;
+  cursor: default;
+  user-select: none;
+}
+.textLayer.selecting .endOfContent {
+  top: 0;
+}
+.textLayer ::selection {
+  background: rgb(var(--accent) / 0.35);
+}
+/* Inline math ($…$) rendered live by @tiptap/extension-mathematics via KaTeX.
+   The decoration replaces the raw text; while the caret is inside it, the raw
+   $…$ is shown highlighted so it can be edited. */
+.Tiptap-mathematics-render {
+  @apply cursor-default rounded px-0.5;
+}
+.Tiptap-mathematics-render--editable {
+  @apply cursor-text;
+}
+.Tiptap-mathematics-editor {
+  @apply rounded bg-accent/15 px-0.5 font-mono text-accent;
+}
+
 /* Rendered LLM markdown (summary / inspirations / explain chat). */
 .md-body > :first-child {
   margin-top: 0;
