@@ -1,20 +1,20 @@
 Package: paper-reader
-Version: 0.2.6
+Version: 0.2.7
 Architecture: amd64
 Maintainer: Paper Reader
-Installed-Size: 274299
+Installed-Size: 275935
 Depends: libgtk-3-0, libnotify4, libnss3, libxss1, libxtst6, xdg-utils, libatspi2.0-0, libuuid1, libsecret-1-0
 Recommends: libappindicator3-1
-Filename: pool/main/paper-reader_0.2.6_amd64.deb
-Size: 75918608
-MD5sum: 7709466d9d620f358166d53b06b7a1d6
-SHA1: 86f9fa4def270d2bd1e35e418e7bfb12d0f8f997
-SHA256: 7356fd7343ab419739261b0a81956d00511b81b914e9f87c1ab3820f032cd3a3
+Filename: pool/main/paper-reader_0.2.7_amd64.deb
+Size: 76792624
+MD5sum: 86feb28848a6808c97917f1d6607f0f9
+SHA1: af11d7dcde32c5e2e0e33654751eaaacc6517891
+SHA256: 9af7e916f5aec9f61f106c3a0af87af5f7aacf8d239ebc6f2ff54c96c7ffc7d0
 Section: default
 Priority: optional
 Homepage: https://github.com/paper-reader/paper-reader
 Description:
   An elegant desktop app for reading, translating, summarizing and annotating academic papers.
-License: MIT
+License: PolyForm-Noncommercial-1.0.0
 Vendor: Paper Reader
 
