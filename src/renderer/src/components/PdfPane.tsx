@@ -97,11 +97,12 @@ export default function PdfPane({ pdfPath }: { pdfPath: string }): JSX.Element {
   const [fitScale, setFitScale] = useState(1)
   const [zoom, setZoom] = useState(1)
   const scale = fitScale * zoom
-  const [status, setStatus] = useState<'loading' | 'extracting' | 'ready' | 'error'>(
-    'loading'
-  )
+  const [status, setStatus] = useState<
+    'loading' | 'extracting' | 'downloading' | 'ready' | 'error'
+  >('loading')
 
   const tabId = useTabId()
+  const meta = useTab((t) => t?.project.meta)
   const blocks = useTab((t) => t?.project.blocks ?? [])
   const activeId = useTab((t) => t?.activeBlockId ?? null)
   const hoverId = useTab((t) => t?.hoverBlockId ?? null)
@@ -113,12 +114,21 @@ export default function PdfPane({ pdfPath }: { pdfPath: string }): JSX.Element {
   const restoredRef = useRef(false)
   const { setBlocks, selectBlock, setHoverBlock: setHover } = useTabActions()
 
-  // Load document + page sizes + extract blocks.
+  // Load document + page sizes + extract blocks. If the PDF is missing (kept
+  // out of git for re-fetchable papers), re-download the original first.
   useEffect(() => {
     let cancelled = false
     ;(async () => {
       try {
-        const bytes = await window.api.project.readPdf(pdfPath)
+        let bytes: Uint8Array
+        try {
+          bytes = await window.api.project.readPdf(pdfPath)
+        } catch (missing) {
+          if (!meta?.pdfUrl) throw missing // not re-fetchable → genuine error
+          if (!cancelled) setStatus('downloading')
+          await window.api.intake.refetch(pdfPath, meta.pdfUrl)
+          bytes = await window.api.project.readPdf(pdfPath)
+        }
         const d = await loadPdf(bytes)
         if (cancelled) return
         const ps: PageSize[] = []
@@ -146,7 +156,7 @@ export default function PdfPane({ pdfPath }: { pdfPath: string }): JSX.Element {
     return () => {
       cancelled = true
     }
-  }, [pdfPath, setBlocks, tabId])
+  }, [pdfPath, setBlocks, tabId, meta?.pdfUrl])
 
   // Fit page width to the column (this is the 100% baseline; zoom scales it up).
   useEffect(() => {
@@ -272,7 +282,11 @@ export default function PdfPane({ pdfPath }: { pdfPath: string }): JSX.Element {
         {status !== 'ready' && status !== 'error' && (
           <div className="flex items-center justify-center gap-2 py-10 text-sm text-muted">
             <Spinner />
-            {status === 'loading' ? 'Loading PDF…' : 'Extracting paragraphs…'}
+            {status === 'downloading'
+              ? `Downloading original PDF${meta?.pdfSize ? ` (${(meta.pdfSize / 1e6).toFixed(1)} MB)` : ''}…`
+              : status === 'loading'
+                ? 'Loading PDF…'
+                : 'Extracting paragraphs…'}
           </div>
         )}
         {status === 'error' && (

@@ -1,0 +1,24 @@
+{
+  "comment": "Narrow typecheck of just the platform (api) layer + shared domain — used during M1 before the reused renderer UI is wired in.",
+  "compilerOptions": {
+    "target": "ESNext",
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "jsx": "react-jsx",
+    "lib": ["DOM", "DOM.Iterable", "ESNext"],
+    "types": ["node"],
+    "strict": true,
+    "skipLibCheck": true,
+    "noEmit": true,
+    "esModuleInterop": true,
+    "resolveJsonModule": true,
+    "allowSyntheticDefaultImports": true,
+    "forceConsistentCasingInFileNames": true,
+    "baseUrl": ".",
+    "paths": {
+      "@shared/*": ["../src/shared/*"],
+      "@mobile/*": ["src/*"]
+    }
+  },
+  "include": ["src/api/**/*", "src/global.d.ts", "../src/shared/**/*"]
+}

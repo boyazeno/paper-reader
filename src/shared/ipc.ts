@@ -21,6 +21,8 @@ export const IPC = {
   intakeFromUrl: 'intake:from-url',
   intakeFromPath: 'intake:from-path',
   intakeFromData: 'intake:from-data',
+  intakeRefetch: 'intake:refetch',
+  intakeMarkRefetchable: 'intake:mark-refetchable',
   // projects
   projectSave: 'project:save',
   projectSaveAs: 'project:save-as',

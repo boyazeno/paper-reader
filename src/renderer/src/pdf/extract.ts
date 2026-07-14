@@ -67,6 +67,124 @@ function bodyMargin(xs: number[], binW: number): number {
   return Math.min(...frequent) * binW
 }
 
+// ---- math-aware line reconstruction (offline heuristics) ----
+
+/** Common math Unicode → LaTeX, so a detected `$…$` run renders in KaTeX. */
+const MATH_SYM: Record<string, string> = {
+  '∫': '\\int', '∮': '\\oint', '∑': '\\sum', '∏': '\\prod', '√': '\\sqrt{}',
+  '∞': '\\infty', '∂': '\\partial', '∇': '\\nabla', '∆': '\\Delta',
+  '±': '\\pm', '∓': '\\mp', '×': '\\times', '÷': '\\div', '·': '\\cdot', '∗': '*',
+  '≤': '\\leq', '≥': '\\geq', '≠': '\\neq', '≈': '\\approx', '≡': '\\equiv',
+  '∝': '\\propto', '∼': '\\sim', '≪': '\\ll', '≫': '\\gg',
+  '→': '\\to', '←': '\\leftarrow', '↔': '\\leftrightarrow', '⇒': '\\Rightarrow',
+  '⇐': '\\Leftarrow', '⇔': '\\Leftrightarrow', '↦': '\\mapsto',
+  '∈': '\\in', '∉': '\\notin', '∋': '\\ni', '⊂': '\\subset', '⊆': '\\subseteq',
+  '⊃': '\\supset', '⊇': '\\supseteq', '∪': '\\cup', '∩': '\\cap', '∖': '\\setminus',
+  '∀': '\\forall', '∃': '\\exists', '∄': '\\nexists', '∅': '\\emptyset',
+  '¬': '\\neg', '∧': '\\wedge', '∨': '\\vee', '⊕': '\\oplus', '⊗': '\\otimes',
+  '⟨': '\\langle', '⟩': '\\rangle', '‖': '\\|', '…': '\\dots', '⋯': '\\cdots',
+  '∘': '\\circ', '∙': '\\bullet', '†': '\\dagger', 'ℓ': '\\ell', 'ℝ': '\\mathbb{R}',
+  'ℕ': '\\mathbb{N}', 'ℤ': '\\mathbb{Z}', 'ℚ': '\\mathbb{Q}', 'ℂ': '\\mathbb{C}',
+  'α': '\\alpha', 'β': '\\beta', 'γ': '\\gamma', 'δ': '\\delta', 'ε': '\\epsilon',
+  'ζ': '\\zeta', 'η': '\\eta', 'θ': '\\theta', 'ι': '\\iota', 'κ': '\\kappa',
+  'λ': '\\lambda', 'μ': '\\mu', 'ν': '\\nu', 'ξ': '\\xi', 'π': '\\pi', 'ρ': '\\rho',
+  'σ': '\\sigma', 'ς': '\\varsigma', 'τ': '\\tau', 'υ': '\\upsilon', 'φ': '\\phi',
+  'ϕ': '\\phi', 'χ': '\\chi', 'ψ': '\\psi', 'ω': '\\omega',
+  'Γ': '\\Gamma', 'Θ': '\\Theta', 'Λ': '\\Lambda', 'Ξ': '\\Xi', 'Π': '\\Pi',
+  'Σ': '\\Sigma', 'Φ': '\\Phi', 'Ψ': '\\Psi', 'Ω': '\\Omega'
+}
+
+const hasSym = (s: string): boolean => [...s].some((c) => c in MATH_SYM)
+const toLatex = (s: string): string => [...s].map((c) => MATH_SYM[c] ?? c).join('')
+/** A short token (variable/number cluster like `x`, `mc`, `dx`) that can carry a
+ * sub/superscript — capped at 3 chars so prose words don't get pulled into math
+ * by a following footnote marker. */
+const isVarBase = (s: string): boolean => {
+  const t = s.trim()
+  return t.length >= 1 && t.length <= 3 && /^[A-Za-z0-9()[\]]+$/.test(t)
+}
+
+/**
+ * Reconstruct one line's text with offline math heuristics: recover
+ * super/subscripts from glyph geometry (a smaller item raised/lowered from the
+ * baseline → `^{…}` / `_{…}`), map math symbols to LaTeX, and wrap the detected
+ * math in `$…$` so KaTeX renders it. Prose is left untouched.
+ */
+function lineText(line: Line): string {
+  const items = line.items // sorted by x
+  const n = items.length
+  if (n === 0) return ''
+  const baseH = median(items.map((i) => i.h)) || 10
+  const bigCenters = items.filter((i) => i.h >= baseH * 0.85).map((i) => i.y + i.h / 2)
+  const baseCenter = bigCenters.length
+    ? median(bigCenters)
+    : median(items.map((i) => i.y + i.h / 2))
+  const gapThresh = baseH * 0.3
+  const adjacent = (a: Item, b: Item): boolean => b.x - (a.x + a.w) <= gapThresh
+
+  type Cls = 'base' | 'sup' | 'sub'
+  const cls: Cls[] = items.map((it) => {
+    const center = it.y + it.h / 2
+    const small = it.h <= baseH * 0.92
+    if (small && center < baseCenter - baseH * 0.22) return 'sup'
+    if (small && center > baseCenter + baseH * 0.22) return 'sub'
+    return 'base'
+  })
+
+  // Mark which items are "math": symbol-bearing, or a single-char base that a
+  // script attaches to, then chain scripts onto a mathy predecessor.
+  const mathy: boolean[] = items.map((it, i) => {
+    if (hasSym(it.str)) return true
+    if (cls[i] === 'base' && isVarBase(it.str)) {
+      const nx = items[i + 1]
+      if (nx && cls[i + 1] !== 'base' && adjacent(it, nx)) return true
+    }
+    return false
+  })
+  for (let i = 1; i < n; i++) {
+    if (cls[i] !== 'base' && !mathy[i] && mathy[i - 1] && adjacent(items[i - 1], items[i])) {
+      mathy[i] = true
+    }
+  }
+
+  // Emit prose items and math runs as space-separated tokens (matching the
+  // original word-joining), so only the math internals are tightened.
+  const tokens: string[] = []
+  let i = 0
+  while (i < n) {
+    if (!mathy[i]) {
+      tokens.push(items[i].str) // prose (or a stray script after a word)
+      i++
+      continue
+    }
+    let math = ''
+    let sup = ''
+    let sub = ''
+    const flushScripts = (): void => {
+      if (sup) {
+        math += `^{${sup}}`
+        sup = ''
+      }
+      if (sub) {
+        math += `_{${sub}}`
+        sub = ''
+      }
+    }
+    while (i < n && mathy[i]) {
+      if (cls[i] === 'sup') sup += toLatex(items[i].str)
+      else if (cls[i] === 'sub') sub += toLatex(items[i].str)
+      else {
+        flushScripts()
+        math += toLatex(items[i].str)
+      }
+      i++
+    }
+    flushScripts()
+    tokens.push(`$${math}$`)
+  }
+  return tokens.join(' ')
+}
+
 function makeLine(items: Item[], col: Col = 'single'): Line {
   const sorted = [...items].sort((a, b) => a.x - b.x)
   const x = Math.min(...sorted.map((i) => i.x))
@@ -76,21 +194,34 @@ function makeLine(items: Item[], col: Col = 'single'): Line {
   return { items: sorted, x, y, right, bottom, h: bottom - y, col }
 }
 
-/** Cluster items into lines by vertical-centre proximity. */
+/** Cluster items into lines by vertical-centre proximity. The line's baseline is
+ * anchored on its full-size glyphs, and smaller glyphs (super/subscripts) get a
+ * looser tolerance so they stay on the line instead of splitting off — which is
+ * what lets the math reconstruction see them. */
 function clusterLines(items: Item[], lineHeight: number): Line[] {
   if (items.length === 0) return []
   const sorted = [...items].sort((a, b) => a.y - b.y || a.x - b.x)
   const groups: Item[][] = []
   let cur: Item[] = []
-  let center = 0
+  let baseline = 0 // centre of the current line's full-size glyphs
+  const recompute = (): void => {
+    const big = cur.filter((i) => i.h >= lineHeight * 0.85).map((i) => i.y + i.h / 2)
+    baseline = big.length ? median(big) : median(cur.map((i) => i.y + i.h / 2))
+  }
   for (const it of sorted) {
     const c = it.y + it.h / 2
-    if (cur.length && Math.abs(c - center) < lineHeight * 0.6) {
+    const small = it.h < lineHeight * 0.8
+    // A script (small glyph) may sit up to ~1 line-height off the baseline; a
+    // full-size glyph on the next line is ~1.2 line-heights away, so this keeps
+    // scripts in but doesn't merge adjacent lines.
+    const tol = small ? lineHeight * 1.0 : lineHeight * 0.6
+    if (cur.length && Math.abs(c - baseline) < tol) {
       cur.push(it)
+      recompute()
     } else {
       if (cur.length) groups.push(cur)
       cur = [it]
-      center = c
+      recompute()
     }
   }
   if (cur.length) groups.push(cur)
@@ -248,9 +379,9 @@ async function extractPage(doc: PDFDocumentProxy, pageNum: number): Promise<Bloc
       group.map((l) => ({ x: l.x, y: l.y, w: l.right - l.x, h: l.h }))
     )
     const text = group
-      .map((l) => l.items.map((i) => i.str).join(' '))
+      .map(lineText)
       .join(' ')
-      .replace(/\s+/g, ' ')
+      .replace(/[ \t]+/g, ' ')
       .trim()
     if (text)
       blocks.push({ id: `p${pageNum}-b${blocks.length}`, page: pageNum, bbox, text })

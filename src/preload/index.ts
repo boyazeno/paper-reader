@@ -31,7 +31,11 @@ const api = {
     fromPath: (path: string): Promise<IntakeResult> =>
       ipcRenderer.invoke(IPC.intakeFromPath, path),
     fromData: (data: Uint8Array, title: string, source: string): Promise<IntakeResult> =>
-      ipcRenderer.invoke(IPC.intakeFromData, data, title, source)
+      ipcRenderer.invoke(IPC.intakeFromData, data, title, source),
+    refetch: (pdfPath: string, url: string): Promise<void> =>
+      ipcRenderer.invoke(IPC.intakeRefetch, pdfPath, url),
+    markRefetchable: (pdfPath: string): Promise<void> =>
+      ipcRenderer.invoke(IPC.intakeMarkRefetchable, pdfPath)
   },
   project: {
     readPdf: (pdfPath: string): Promise<Uint8Array> =>

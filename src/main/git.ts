@@ -113,6 +113,14 @@ export async function gitSync(): Promise<GitSyncResult> {
   if (!ok(remote) || !remote.stdout.trim()) return { status: 'no-remote' }
   const branch = await currentBranch(cwd)
 
+  // 0) Untrack any now-gitignored files (e.g. re-fetchable PDFs), so they stop
+  //    syncing. `-ci` lists tracked-but-ignored files; their working copies stay.
+  const ignored = (await git(['ls-files', '-ci', '--exclude-standard'], cwd)).stdout
+    .split('\n')
+    .map((s) => s.trim())
+    .filter(Boolean)
+  if (ignored.length) await git(['rm', '--cached', '--', ...ignored], cwd)
+
   // 1) Commit local changes.
   if ((await git(['status', '--porcelain'], cwd)).stdout.trim()) {
     await git(['add', '-A'], cwd)

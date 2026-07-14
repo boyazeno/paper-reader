@@ -53,6 +53,14 @@ export interface ProjectMeta {
   source: string
   createdAt: number
   lang: string
+  /** Direct URL to re-download the original PDF. Set ONLY when the PDF is
+   * re-fetchable (URL intake). When present, `paper.pdf` is git-ignored and
+   * re-downloaded on demand; when absent, the PDF stays tracked in git. */
+  pdfUrl?: string
+  /** SHA-256 of the original PDF bytes (integrity check on re-download). */
+  pdfSha256?: string
+  /** Size of the original PDF in bytes. */
+  pdfSize?: number
 }
 
 export interface Project {
@@ -151,4 +159,9 @@ export interface IntakeResult {
   pdfPath: string
   title: string
   source: string
+  /** Re-fetch info, populated by URL intake so the project can drop the PDF
+   * from git and re-download it later (see ProjectMeta). */
+  pdfUrl?: string
+  pdfSha256?: string
+  pdfSize?: number
 }

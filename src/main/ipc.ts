@@ -6,7 +6,14 @@ import type { AppSettings, LlmRequest, ProviderId } from '@shared/types'
 import { loadSettings, saveSettings } from './settings'
 import { loadSession, saveSession } from './session'
 import type { SessionData } from '@shared/types'
-import { importFromData, importFromPath, importFromUrl, pickAndImport } from './intake'
+import {
+  importFromData,
+  importFromPath,
+  importFromUrl,
+  pickAndImport,
+  refetch,
+  markRefetchable
+} from './intake'
 import {
   setSecret,
   hasSecret,
@@ -69,6 +76,12 @@ export function registerIpc(): void {
     IPC.intakeFromData,
     async (_e, data: Uint8Array, title: string, source: string) =>
       importFromData(data, title, source)
+  )
+  ipcMain.handle(IPC.intakeRefetch, async (_e, pdfPath: string, url: string) =>
+    refetch(pdfPath, url)
+  )
+  ipcMain.handle(IPC.intakeMarkRefetchable, async (_e, pdfPath: string) =>
+    markRefetchable(pdfPath)
   )
 
   // ---- pdf bytes for the renderer (pdfjs) ----

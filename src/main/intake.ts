@@ -1,6 +1,7 @@
 import { dialog } from 'electron'
-import { join } from 'path'
+import { join, dirname } from 'path'
 import { promises as fs } from 'fs'
+import { createHash } from 'crypto'
 import type { IntakeResult } from '@shared/types'
 import { createProjectDir, deriveTitle } from './project'
 
@@ -38,36 +39,50 @@ export function normalizePdfUrl(raw: string): string {
   }
 }
 
-/** Copy a local PDF into a fresh project folder. */
+/**
+ * After `paper.pdf` is in place, record its size + sha256 (integrity), and —
+ * when the PDF is re-fetchable (`pdfUrl` set) — write a per-project `.gitignore`
+ * so git never tracks this PDF (it's re-downloaded on demand).
+ */
+async function finalize(
+  dir: string,
+  title: string,
+  source: string,
+  pdfUrl?: string
+): Promise<IntakeResult> {
+  const pdfPath = join(dir, 'paper.pdf')
+  const buf = await fs.readFile(pdfPath)
+  const pdfSha256 = createHash('sha256').update(buf).digest('hex')
+  const pdfSize = buf.length
+  if (pdfUrl) await fs.writeFile(join(dir, '.gitignore'), 'paper.pdf\n')
+  return { pdfPath, title, source, pdfUrl, pdfSha256, pdfSize }
+}
+
+/** Copy a local PDF into a fresh project folder (not re-fetchable). */
 export async function importFromPath(srcPath: string): Promise<IntakeResult> {
   await assertPdf(srcPath)
   const title = deriveTitle(srcPath)
   const { dir } = await createProjectDir(title)
-  const pdfPath = join(dir, 'paper.pdf')
-  await fs.copyFile(srcPath, pdfPath)
-  return { pdfPath, title, source: srcPath }
+  await fs.copyFile(srcPath, join(dir, 'paper.pdf'))
+  return finalize(dir, title, srcPath)
 }
 
-/** Download a remote PDF into a fresh project folder. */
+/** Download a remote PDF into a fresh project folder (re-fetchable). */
 export async function importFromUrl(rawUrl: string): Promise<IntakeResult> {
   const url = normalizePdfUrl(rawUrl.trim())
   const res = await fetch(url, { redirect: 'follow' })
   if (!res.ok) throw new Error(`Download failed (HTTP ${res.status}).`)
   const buf = Buffer.from(await res.arrayBuffer())
-  if (!isPdf(buf)) {
-    throw new Error('The URL did not return a PDF.')
-  }
+  if (!isPdf(buf)) throw new Error('The URL did not return a PDF.')
   const title = deriveTitle(url)
   const { dir } = await createProjectDir(title)
-  const pdfPath = join(dir, 'paper.pdf')
-  await fs.writeFile(pdfPath, buf)
-  return { pdfPath, title, source: url }
+  await fs.writeFile(join(dir, 'paper.pdf'), buf)
+  return finalize(dir, title, url, url) // re-fetchable → pdfUrl = url
 }
 
 /**
- * Save a PDF rendered in the renderer (e.g. a web page printed to PDF via the
- * embedded browser) into a fresh project folder. The bytes come from Electron's
- * `webview.printToPDF`, so the text layer stays selectable/extractable.
+ * Save a PDF rendered in the renderer (e.g. an embedded-browser page printed to
+ * PDF) into a fresh project folder. Not re-fetchable → the PDF stays in git.
  */
 export async function importFromData(
   data: Uint8Array,
@@ -80,9 +95,8 @@ export async function importFromData(
   }
   const title = (rawTitle?.trim() || deriveTitle(source)).slice(0, 200)
   const { dir } = await createProjectDir(title)
-  const pdfPath = join(dir, 'paper.pdf')
-  await fs.writeFile(pdfPath, buf)
-  return { pdfPath, title, source }
+  await fs.writeFile(join(dir, 'paper.pdf'), buf)
+  return finalize(dir, title, source)
 }
 
 /** Open a native file picker, then import the chosen PDF. Returns null if cancelled. */
@@ -94,4 +108,20 @@ export async function pickAndImport(): Promise<IntakeResult | null> {
   })
   if (r.canceled || r.filePaths.length === 0) return null
   return importFromPath(r.filePaths[0])
+}
+
+/** Mark an existing project re-fetchable: write its per-project `.gitignore` so
+ * git stops tracking `paper.pdf` (used to migrate old URL projects). */
+export async function markRefetchable(pdfPath: string): Promise<void> {
+  await fs.writeFile(join(dirname(pdfPath), '.gitignore'), 'paper.pdf\n')
+}
+
+/** Re-download an original PDF to an EXISTING project path (no new project). */
+export async function refetch(pdfPath: string, url: string): Promise<void> {
+  const res = await fetch(normalizePdfUrl(url), { redirect: 'follow' })
+  if (!res.ok) throw new Error(`Download failed (HTTP ${res.status}).`)
+  const buf = Buffer.from(await res.arrayBuffer())
+  if (!isPdf(buf)) throw new Error('The source did not return a PDF.')
+  await fs.writeFile(join(dirname(pdfPath), '.gitignore'), 'paper.pdf\n')
+  await fs.writeFile(pdfPath, buf)
 }

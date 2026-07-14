@@ -26,7 +26,9 @@ export default function Markdown({
     <div className={cn('md-body', className)}>
       <ReactMarkdown
         remarkPlugins={[remarkGfm, remarkMath]}
-        rehypePlugins={[rehypeKatex]}
+        // Heuristic PDF math extraction can emit imperfect LaTeX — don't blow up
+        // on it; render best-effort instead of a red error.
+        rehypePlugins={[[rehypeKatex, { throwOnError: false, strict: false }]]}
         components={{
           // eslint-disable-next-line @typescript-eslint/no-unused-vars
           a: ({ node, ...props }) => (

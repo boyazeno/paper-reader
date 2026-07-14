@@ -111,6 +111,26 @@ const dirOf = (pdfPath: string): string => pdfPath.replace(/\/paper\.pdf$/, '')
 /** Join a paper's blocks into a single plain-text document for LLM context. */
 const blocksToText = (blocks: Block[]): string => blocks.map((b) => b.text).join('\n\n')
 
+/** If a project's `source` is a re-fetchable direct-PDF URL (arXiv or a `.pdf`
+ * link), return the normalized re-download URL; else null. Used to migrate old
+ * URL projects to the lean (PDF-out-of-git) format. */
+function directPdfUrl(source: string): string | null {
+  try {
+    const u = new URL(source)
+    if (u.protocol !== 'http:' && u.protocol !== 'https:') return null
+    const abs = u.pathname.match(/\/abs\/([^/]+)$/)
+    if (u.hostname.includes('arxiv.org') && abs) {
+      u.pathname = `/pdf/${abs[1]}`
+      return u.toString()
+    }
+    if (u.hostname.includes('arxiv.org') && u.pathname.includes('/pdf/')) return source
+    if (/\.pdf($|\?)/i.test(u.pathname)) return source
+    return null
+  } catch {
+    return null
+  }
+}
+
 function makeTab(
   project: Project,
   savedPath: string | null,
@@ -149,6 +169,26 @@ export const useStore = create<AppState>((set, get) => {
       if (!t) return {}
       return { tabs: { ...s.tabs, [tabId]: { ...t, ...fn(t) } } }
     })
+
+  /** Migrate an opened project to the lean format: if its PDF is re-fetchable
+   * but not yet marked, write its per-project .gitignore + record `pdfUrl`, so
+   * the next sync drops the PDF from git. Best-effort, fire-and-forget. */
+  const backfillRefetch = (tabId: string): void => {
+    const t = get().tabs[tabId]
+    if (!t?.savedPath || t.project.meta.pdfUrl) return
+    const url = directPdfUrl(t.project.meta.source)
+    if (!url) return
+    void window.api.intake
+      .markRefetchable(t.project.pdfPath)
+      .then(async () => {
+        updateTab(tabId, (tt) => ({
+          project: { ...tt.project, meta: { ...tt.project.meta, pdfUrl: url } }
+        }))
+        const proj = get().tabs[tabId]?.project
+        if (proj) await window.api.project.save(proj)
+      })
+      .catch(() => {})
+  }
 
   return {
     view: 'welcome',
@@ -360,7 +400,10 @@ export const useStore = create<AppState>((set, get) => {
           title: r.title,
           source: r.source,
           createdAt: Date.now(),
-          lang: get().settings?.targetLang ?? 'Chinese'
+          lang: get().settings?.targetLang ?? 'Chinese',
+          pdfUrl: r.pdfUrl,
+          pdfSha256: r.pdfSha256,
+          pdfSize: r.pdfSize
         },
         pdfPath: r.pdfPath,
         blocks: [],
@@ -377,16 +420,18 @@ export const useStore = create<AppState>((set, get) => {
       const dir = dirOf(project.pdfPath)
       const open = get().tabOrder.find((id) => get().tabs[id].savedPath === dir)
       if (open) return get().switchTab(open)
-      get().openTab(project, dir)
+      const id = get().openTab(project, dir)
       recordRecent(dir, project.meta.title)
+      backfillRefetch(id)
     },
 
     openProjectPath: async (dir) => {
       const open = get().tabOrder.find((id) => get().tabs[id].savedPath === dir)
       if (open) return get().switchTab(open)
       const project = await window.api.project.openPath(dir)
-      get().openTab(project, dir)
+      const id = get().openTab(project, dir)
       recordRecent(dir, project.meta.title)
+      backfillRefetch(id)
     }
   }
 })

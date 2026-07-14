@@ -1,0 +1,23 @@
+/* Mobile-only tweaks layered on top of the reused desktop stylesheet
+   (@renderer/styles/index.css). No @tailwind here — that stylesheet owns the
+   Tailwind layers, the color variables, and the .textLayer / prose / KaTeX
+   rules the reused components depend on. */
+
+body {
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* Respect device safe areas (notches / gesture bars). */
+#root {
+  padding: env(safe-area-inset-top) env(safe-area-inset-right)
+    env(safe-area-inset-bottom) env(safe-area-inset-left);
+}
+
+/* The reused desktop ChatPanel is a fixed 380px pane anchored bottom-right;
+   on a phone that clips off-screen. Center it near-full-width instead. */
+.mobile-chat > div {
+  left: 0.5rem !important;
+  right: 0.5rem !important;
+  width: auto !important;
+  height: 80% !important;
+}
